@@ -1,0 +1,4461 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="StockVendedor">
+<meta name="theme-color" content="#0d0f14">
+<title>StockVendedor</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+/* RESET + VARIABLES */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0d0f14;
+  --surface: #161922;
+  --surface2: #1f232f;
+  --border: #2a2f3d;
+  --text: #e6e8ee;
+  --muted: #6f7689;
+  --accent: #00e08a;
+  --accent2: #ffa500;
+  --warn: #ffb800;
+  --red: #ff4757;
+  --blue: #4a90e2;
+  --tap: 44px;
+}
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size: 14px;
+  height: 100%;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+body {
+  display: flex; flex-direction: column;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+input, select, button, textarea { font-family: inherit; font-size: inherit; color: inherit; }
+input[type="number"] { -moz-appearance: textfield; }
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* PAGE / TAB */
+.tab-page { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+.tab-page.active { display: flex; }
+.page-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.scroll-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 1rem; }
+
+/* HERO */
+.home-hero { padding: 2rem 1rem 1rem; text-align: center; }
+.hero-title {
+  font-family: 'Syne', sans-serif;
+  font-weight: 800; font-size: 2.4rem;
+  color: var(--accent); letter-spacing: -0.02em;
+}
+.hero-sub { color: var(--muted); margin-top: .35rem; font-size: .78rem; }
+
+/* SECTION */
+.section-title {
+  font-family: 'Syne', sans-serif; font-weight: 700;
+  font-size: .82rem; color: var(--accent);
+  text-transform: uppercase; letter-spacing: .05em;
+  margin-bottom: .5rem;
+}
+.config-section { padding: 1rem 1rem; border-top: 1px solid var(--border); }
+.config-section:first-of-type { border-top: none; }
+
+.field-group { margin-bottom: .75rem; }
+.field-group label {
+  display: block; font-size: .68rem; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .04em;
+  margin-bottom: .25rem;
+}
+.field-group input, .field-group select, .field-group textarea {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: .65rem .75rem;
+  color: var(--text);
+  font-size: .9rem;
+  min-height: var(--tap);
+}
+.field-group textarea { resize: vertical; min-height: 60px; font-family: inherit; }
+.field-group input:focus, .field-group select:focus, .field-group textarea:focus {
+  outline: none; border-color: var(--accent);
+}
+
+.info-text { font-size: .72rem; color: var(--muted); margin-bottom: .75rem; }
+.home-info {
+  font-size: .75rem; padding: .5rem .75rem;
+  border-radius: 8px; margin-top: .5rem;
+  font-family: 'DM Mono', monospace;
+}
+.home-info-ok { background: rgba(0, 224, 138, 0.1); color: var(--accent); }
+.home-info-empty { background: var(--surface2); color: var(--muted); }
+
+/* BUTTONS */
+.btn-save-config, .btn-import {
+  width: 100%; min-height: var(--tap);
+  background: var(--accent); color: #0d0f14;
+  border: none; border-radius: 12px;
+  font-family: 'Syne', sans-serif; font-weight: 800;
+  font-size: .9rem; padding: .75rem;
+  cursor: pointer; transition: opacity .15s;
+}
+.btn-save-config:active { opacity: .8; }
+
+.btn-import {
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  color: var(--text);
+  display: flex; align-items: center; gap: .65rem;
+  text-align: left; padding: .75rem 1rem;
+}
+.btn-import:active { border-color: var(--accent); }
+.btn-import > span:first-child { font-size: 1.3rem; }
+.btn-import-text { flex: 1; min-width: 0; }
+.btn-import-name { display: block; font-weight: 700; font-size: .85rem; }
+.btn-import-desc { display: block; font-size: .65rem; color: var(--muted); margin-top: .1rem; }
+
+/* TEMPLATE SECTION */
+.stock-template-bar {
+  padding: .75rem 1rem .25rem;
+}
+.btn-template {
+  width: 100%; min-height: 42px;
+  background: var(--accent2); color: #0d0f14;
+  border: none; border-radius: 10px;
+  font-family: 'Syne', sans-serif; font-weight: 800;
+  font-size: .82rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-template:active { opacity: .82; }
+
+.template-section {
+  padding: .75rem 1rem .25rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: .25rem;
+}
+.template-section-title {
+  font-family: 'Syne', sans-serif; font-weight: 700;
+  font-size: .72rem; color: var(--accent2);
+  text-transform: uppercase; letter-spacing: .04em;
+  margin-bottom: .5rem;
+}
+.template-actions {
+  display: flex; flex-direction: column; gap: .4rem;
+}
+.btn-template-action {
+  display: flex; align-items: center; gap: .6rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: .6rem .75rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  font-family: inherit; font-size: 1rem;
+  text-align: left;
+}
+.btn-template-action:active { border-color: var(--accent2); }
+.btn-template-action > span:first-child { font-size: 1.2rem; }
+.btn-template-import { border-style: dashed; }
+.bta-text { flex: 1; min-width: 0; }
+.bta-name {
+  display: block; font-size: .8rem; font-weight: 700;
+  font-family: 'Syne', sans-serif;
+}
+.bta-desc {
+  display: block; font-size: .62rem; color: var(--muted);
+  margin-top: .1rem;
+}
+
+/* TAB BAR */
+.tab-bar {
+  display: flex; flex-shrink: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.tab-btn {
+  flex: 1; min-height: 58px;
+  background: transparent; border: none;
+  color: var(--muted);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: .15rem;
+  font-family: 'Syne', sans-serif; font-weight: 700;
+  font-size: .58rem; letter-spacing: .04em;
+  cursor: pointer; position: relative;
+  -webkit-tap-highlight-color: transparent;
+}
+.tab-btn.active { color: var(--accent); }
+.tab-icon { font-size: 1.3rem; }
+.tab-badge {
+  position: absolute; top: 6px; right: calc(50% - 22px);
+  background: var(--accent2); color: #0d0f14;
+  border-radius: 99px;
+  font-size: .58rem; font-weight: 800;
+  padding: .05rem .3rem;
+  min-width: 16px; text-align: center;
+}
+
+/* SEARCH BAR */
+.search-bar { position: relative; padding: .75rem 1rem .25rem; }
+.search-bar input {
+  width: 100%; background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: .65rem .75rem; padding-right: 2.2rem;
+  color: var(--text); font-size: .85rem; min-height: var(--tap);
+}
+.search-bar input:focus { outline: none; border-color: var(--accent); }
+.clear-btn {
+  position: absolute; right: 1.4rem; top: 50%;
+  transform: translateY(-50%);
+  background: transparent; border: none;
+  color: var(--muted); font-size: 1.1rem;
+  cursor: pointer; display: none; padding: .25rem .5rem;
+}
+.clear-btn.visible { display: block; }
+
+/* CHIPS */
+.chips-row {
+  display: flex; gap: .4rem; padding: .25rem 1rem .5rem;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+}
+.chip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  padding: .35rem .75rem;
+  font-size: .72rem; white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.chip.active { background: var(--accent); color: #0d0f14; border-color: var(--accent); font-weight: 700; }
+
+.result-count {
+  padding: 0 1rem .25rem;
+  font-size: .68rem; color: var(--muted);
+}
+
+/* STOCK CARDS */
+.stock-results { display: flex; flex-direction: column; height: 100%; }
+#stockList { padding: 0 1rem 1rem; }
+.stock-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: 12px;
+  padding: .65rem .75rem;
+  margin-bottom: .5rem;
+  display: flex; gap: .65rem;
+}
+.stock-card.stock-out    { border-left-color: var(--red); opacity: .65; }
+.stock-card.stock-low    { border-left-color: var(--warn); }
+.stock-card.stock-ok     { border-left-color: var(--accent); }
+.stock-info { flex: 1; min-width: 0; }
+.stock-name {
+  font-family: 'Syne', sans-serif; font-weight: 700;
+  font-size: .8rem; word-break: break-word;
+  line-height: 1.25;
+}
+.stock-sub {
+  font-size: .65rem; color: var(--muted);
+  margin-top: .15rem;
+}
+.stock-right { display: flex; flex-direction: column; align-items: flex-end; gap: .25rem; min-width: 100px; }
+.stock-price {
+  font-family: 'Syne', sans-serif; font-weight: 800;
+  font-size: .85rem; color: var(--accent);
+}
+.stock-qty { display: flex; flex-direction: column; align-items: flex-end; }
+.stock-qty-val {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.15rem; font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+}
+.stock-qty-lbl {
+  font-size: .55rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .05em;
+  margin-top: .15rem;
+}
+.stock-qty-lbl.stock-ok     { color: var(--accent); }
+.stock-qty-lbl.stock-low    { color: var(--warn); }
+.stock-qty-lbl.stock-out    { color: var(--red); }
+
+.btn-add {
+  background: var(--accent); color: #0d0f14;
+  border: none; border-radius: 8px;
+  padding: .35rem .65rem;
+  font-family: 'Syne', sans-serif; font-weight: 800;
+  font-size: .65rem;
+  cursor: pointer; margin-top: .25rem;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-add:active { opacity: .8; }
+
+/* EMPTY STATE */
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--muted);
+  font-size: .85rem;
+}
+.empty-state .ei { font-size: 2.5rem; margin-bottom: .5rem; }
+.empty-state p { line-height: 1.5; }
+
+/* ORDER (Pedido actual) */
+.order-wrap { display: flex; flex-direction: column; height: 100%; }
+#orderItemsList { padding: 0 1rem; }
+.order-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: .55rem .65rem;
+  margin-bottom: .45rem;
+  display: grid; grid-template-columns: 1fr auto auto auto;
+  gap: .5rem; align-items: center;
+}
+.order-item-info { min-width: 0; }
+.order-item-name {
+  font-size: .78rem; font-weight: 700;
+  font-family: 'Syne', sans-serif;
+  word-break: break-word; line-height: 1.2;
+}
+.order-item-sub {
+  font-size: .62rem; color: var(--muted);
+  margin-top: .1rem;
+}
+.order-item-controls { display: flex; align-items: center; gap: .25rem; }
+.qty-btn {
+  width: 28px; height: 28px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 1rem; font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.qty-btn:active { border-color: var(--accent); }
+.qty-input {
+  width: 40px; text-align: center;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px; padding: .3rem;
+  font-size: .8rem; font-family: 'DM Mono', monospace;
+}
+.order-item-subtotal {
+  font-family: 'Syne', sans-serif; font-weight: 800;
+  font-size: .8rem; color: var(--accent);
+  min-width: 65px; text-align: right;
+}
+.btn-remove-item {
+  background: transparent; border: none;
+  color: var(--red); font-size: 1rem;
+  cursor: pointer; padding: .15rem .35rem;
+}
+
+.order-footer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  padding: .65rem .75rem;
+}
+.order-total-row {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: .5rem;
+}
+.ot-label {
+  font-family: 'Syne', sans-serif; font-weight: 700;
+  font-size: .85rem; color: var(--muted);
+}
+.ot-value {
+  font-family: 'Syne', sans-serif; font-weight: 800;
+  font-size: 1.4rem; color: var(--accent);
+}
+.order-actions { display: flex; gap: .5rem; }
+.btn-clear-order, .btn-send-order {
+  flex: 1; min-height: 42px;
+  border-radius: 10px;
+  font-family: 'Syne', sans-serif; font-weight: 800;
+  font-size: .8rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-clear-order {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.btn-clear-order:active { border-color: var(--red); color: var(--red); }
+.btn-send-order {
+  flex: 2;
+  background: var(--accent); color: #0d0f14;
+  border: none;
+}
+.btn-send-order:disabled { opacity: .4; cursor: not-allowed; }
+.btn-send-order:active:not(:disabled) { opacity: .8; }
+
+/* HISTORIAL */
+#ordersList { padding: 0 1rem 1rem; }
+.order-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: .65rem .75rem;
+  margin-bottom: .55rem;
+}
+.order-card-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: .5rem;
+}
+.order-card-id {
+  font-family: 'DM Mono', monospace;
+  font-size: .68rem; color: var(--muted);
+}
+.order-card-client {
+  font-family: 'Syne', sans-serif; font-weight: 700;
+  font-size: .9rem; margin-top: .15rem;
+}
+.order-card-meta {
+  font-size: .65rem; color: var(--muted);
+  margin-top: .35rem;
+}
+.order-card-total {
+  font-family: 'Syne', sans-serif; font-weight: 800;
+  font-size: 1rem; color: var(--accent);
+  margin-top: .35rem;
+}
+.order-card-actions { display: flex; gap: .4rem; margin-top: .5rem; }
+.btn-mini {
+  flex: 1;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: .68rem; font-weight: 700;
+  padding: .4rem; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-mini:active { border-color: var(--accent); }
+.btn-mini-del { color: var(--red); }
+.btn-mini-del:active { border-color: var(--red); }
+
+.badge-sent {
+  background: rgba(255, 165, 0, 0.15); color: var(--accent2);
+  padding: .15rem .4rem; border-radius: 99px;
+  font-size: .6rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.badge-accepted {
+  background: rgba(0, 224, 138, 0.15); color: var(--accent);
+  padding: .15rem .4rem; border-radius: 99px;
+  font-size: .6rem; font-weight: 700;
+}
+.badge-rejected {
+  background: rgba(255, 71, 87, 0.15); color: var(--red);
+  padding: .15rem .4rem; border-radius: 99px;
+  font-size: .6rem; font-weight: 700;
+}
+
+/* OVERLAY */
+.overlay {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: none; align-items: center; justify-content: center;
+  z-index: 100; padding: 1rem;
+}
+.overlay.visible { display: flex; }
+.add-overlay-content {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.25rem;
+  width: 100%; max-width: 380px;
+}
+.add-overlay-name {
+  font-family: 'Syne', sans-serif; font-weight: 700;
+  font-size: 1rem; word-break: break-word;
+}
+.add-overlay-sub {
+  font-size: .75rem; color: var(--muted);
+  margin-top: .25rem;
+}
+.add-overlay-qty-row {
+  display: flex; align-items: center; gap: .75rem;
+  margin: 1rem 0;
+}
+.add-overlay-qty-row label { font-size: .8rem; color: var(--muted); }
+.add-overlay-qty-row input {
+  flex: 1; background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: .65rem .75rem;
+  color: var(--text); font-size: 1.1rem; text-align: center;
+  min-height: var(--tap);
+}
+.add-overlay-actions { display: flex; gap: .5rem; }
+.btn-cancel, .btn-confirm {
+  flex: 1; min-height: 42px;
+  border-radius: 10px;
+  font-family: 'Syne', sans-serif; font-weight: 800;
+  font-size: .85rem; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-cancel {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.btn-confirm {
+  background: var(--accent); color: #0d0f14;
+  border: none;
+}
+
+/* TOAST */
+.toast {
+  position: fixed; bottom: 80px; left: 1rem; right: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  padding: .65rem .85rem;
+  border-radius: 10px;
+  font-size: .78rem;
+  z-index: 200;
+  opacity: 0; transform: translateY(10px);
+  transition: opacity .25s, transform .25s;
+  text-align: center;
+}
+.toast.visible { opacity: 1; transform: translateY(0); }
+.toast.ok { border-left-color: var(--accent); }
+.toast.err { border-left-color: var(--red); }
+
+@media (min-width: 680px) {
+  .toast { left: auto; right: 1rem; max-width: 350px; }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   PESTAÑA PEDIDO — Buscador integrado + botón Nuevo pedido (v6.1)
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Barra superior con el botón "Nuevo pedido" */
+.order-topbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: .6rem 1rem .2rem;
+  border-bottom: 1px solid var(--border);
+}
+.btn-new-order {
+  background: var(--surface2);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: .72rem;
+  padding: .45rem .8rem;
+  border-radius: 8px;
+  cursor: pointer;
+  min-height: 38px;
+  -webkit-tap-highlight-color: transparent;
+  transition: all .15s;
+}
+.btn-new-order:hover, .btn-new-order:active {
+  background: var(--accent);
+  color: #0d0f14;
+}
+
+/* Buscador de productos */
+.order-search-section {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  margin-top: .5rem;
+  padding-bottom: .5rem;
+}
+.order-search-wrap {
+  position: relative;
+  padding: .15rem 1rem .4rem;
+}
+.order-search-input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size: .82rem;
+  padding: .55rem .65rem;
+  padding-right: 2.2rem; /* espacio para el botón ✕ */
+  outline: none;
+  min-height: 44px;
+}
+.order-search-input:focus {
+  border-color: var(--accent);
+}
+.order-search-clear {
+  position: absolute;
+  right: 1.3rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: .3rem .5rem;
+  -webkit-tap-highlight-color: transparent;
+}
+.order-search-clear:hover { color: var(--text); }
+
+/* Contenedor de resultados — solo aparece cuando hay algo */
+.order-search-results {
+  padding: 0 1rem;
+}
+.search-hint {
+  padding: .5rem .2rem;
+  font-family: 'DM Mono', monospace;
+  font-size: .68rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* Cards de resultado */
+.osr-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: .55rem .65rem;
+  margin-bottom: .4rem;
+  display: flex;
+  gap: .55rem;
+  align-items: center;
+}
+.osr-card.osr-out {
+  opacity: .62;
+}
+.osr-info {
+  flex: 1;
+  min-width: 0;
+}
+.osr-name {
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: .78rem;
+  line-height: 1.25;
+  color: var(--text);
+  word-break: break-word;
+}
+.osr-sub {
+  font-family: 'DM Mono', monospace;
+  font-size: .6rem;
+  color: var(--muted);
+  margin-top: .1rem;
+  line-height: 1.3;
+}
+.osr-badge {
+  display: inline-block;
+  margin-top: .25rem;
+  padding: .12rem .42rem;
+  border-radius: 4px;
+  font-family: 'DM Mono', monospace;
+  font-size: .55rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.osr-badge.sb-ok  { background: rgba(0, 229, 160, .15); color: var(--accent); }
+.osr-badge.sb-low { background: rgba(245, 158, 11, .15); color: var(--warn); }
+.osr-badge.sb-out { background: rgba(248, 113, 113, .15); color: var(--red); }
+
+.osr-actions {
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+  align-items: stretch;
+  min-width: 76px;
+}
+.osr-qty {
+  width: 76px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size: .85rem;
+  font-weight: 700;
+  padding: .35rem .5rem;
+  text-align: center;
+  outline: none;
+  min-height: 36px;
+  /* sacar las flechitas chiquitas del input number en mobile */
+  -moz-appearance: textfield;
+}
+.osr-qty::-webkit-outer-spin-button,
+.osr-qty::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.osr-qty:focus { border-color: var(--accent); }
+.osr-add-btn {
+  background: var(--accent);
+  color: #0d0f14;
+  border: none;
+  border-radius: 6px;
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  font-size: .7rem;
+  padding: .35rem .5rem;
+  cursor: pointer;
+  min-height: 36px;
+  -webkit-tap-highlight-color: transparent;
+}
+.osr-add-btn:hover, .osr-add-btn:active {
+  filter: brightness(1.1);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   BORRADORES — Botón Guardar + Cards diferenciadas (v6.2)
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Layout de la barra superior con 2 botones */
+.order-topbar {
+  display: flex;
+  gap: .5rem;
+  justify-content: flex-end;
+  padding: .6rem 1rem .2rem;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Botón "Guardar borrador" — color azul-índigo para distinguir del verde
+   del Nuevo pedido y del envío a central */
+.btn-save-draft {
+  background: var(--surface2);
+  border: 1px solid var(--accent2, #3b82f6);
+  color: var(--accent2, #3b82f6);
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: .72rem;
+  padding: .45rem .8rem;
+  border-radius: 8px;
+  cursor: pointer;
+  min-height: 38px;
+  -webkit-tap-highlight-color: transparent;
+  transition: all .15s;
+}
+.btn-save-draft:hover, .btn-save-draft:active {
+  background: var(--accent2, #3b82f6);
+  color: #fff;
+}
+
+/* Cards de borrador en Mis pedidos: borde izquierdo distintivo + tinte */
+.order-card-draft {
+  border-left: 3px solid var(--accent2, #3b82f6);
+  background: linear-gradient(90deg, rgba(59, 130, 246, .06) 0%, transparent 100%);
+}
+
+/* Badge "BORRADOR" */
+.badge-draft {
+  background: rgba(59, 130, 246, .15);
+  color: var(--accent2, #3b82f6);
+  font-family: 'DM Mono', monospace;
+  font-size: .58rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  padding: .15rem .5rem;
+  border-radius: 4px;
+}
+
+/* Botón mini "Continuar" — versión destacada de .btn-mini */
+.btn-mini-primary {
+  background: var(--accent) !important;
+  color: #0d0f14 !important;
+  border-color: var(--accent) !important;
+  font-weight: 700;
+}
+
+/* Líneas de advertencia dentro de la card (precios desactualizados, etc.) */
+.order-card-warn {
+  font-family: 'DM Mono', monospace;
+  font-size: .62rem;
+  color: var(--warn);
+  margin-top: .35rem;
+  padding: .25rem .4rem;
+  background: rgba(245, 158, 11, .1);
+  border-radius: 4px;
+}
+.order-card-current {
+  color: var(--accent);
+  background: rgba(0, 229, 160, .1);
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Overlay de 3 opciones (Guardar / Descartar / Cancelar)
+   ──────────────────────────────────────────────────────────────────── */
+.order-choice-content {
+  /* Le damos un poco más de ancho para los botones grandes */
+  max-width: 360px;
+}
+.order-choice-actions {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  margin-top: 1rem;
+}
+.btn-choice-save,
+.btn-choice-discard,
+.btn-choice-cancel {
+  width: 100%;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: .78rem;
+  padding: .65rem .8rem;
+  border-radius: 8px;
+  cursor: pointer;
+  min-height: 44px;
+  -webkit-tap-highlight-color: transparent;
+  transition: all .15s;
+}
+.btn-choice-save {
+  background: var(--accent2, #3b82f6);
+  border: 1px solid var(--accent2, #3b82f6);
+  color: #fff;
+}
+.btn-choice-discard {
+  background: var(--surface2);
+  border: 1px solid var(--red);
+  color: var(--red);
+}
+.btn-choice-discard:hover, .btn-choice-discard:active {
+  background: var(--red);
+  color: #fff;
+}
+.btn-choice-cancel {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.btn-choice-cancel:hover, .btn-choice-cancel:active {
+  color: var(--text);
+  border-color: var(--text);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   BADGE DE DISPONIBILIDAD EN ITEMS DEL PEDIDO (v6.3)
+   ════════════════════════════════════════════════════════════════════
+   Aparece inline al lado del precio unitario en cada item del pedido,
+   para que el vendedor vea cuánto stock hay disponible sin tocar nada.
+*/
+.oi-avail {
+  display: inline-block;
+  padding: .05rem .35rem;
+  border-radius: 3px;
+  font-family: 'DM Mono', monospace;
+  font-size: .58rem;
+  font-weight: 700;
+  letter-spacing: .03em;
+  /* Que el badge se rompa en nueva línea si no entra al lado del precio,
+     en lugar de empujar el contenido o cortarse */
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.oi-avail-ok      { background: rgba(0, 229, 160, .15);  color: var(--accent); }
+.oi-avail-low     { background: rgba(245, 158, 11, .15); color: var(--warn); }
+.oi-avail-over    { background: rgba(248, 113, 113, .18); color: var(--red); }
+.oi-avail-unknown { background: var(--surface2);          color: var(--muted); }
+
+/* ════════════════════════════════════════════════════════════════════
+   CHIPS DE LISTA ACTIVA (v6.4)
+   ════════════════════════════════════════════════════════════════════
+   Aparecen en pestaña Stock (debajo de la barra de plantilla) y en
+   pestaña Pedido (debajo del topbar de "Nuevo pedido / Guardar borrador").
+   El vendedor toca uno para cambiar la lista activa.
+*/
+.list-chips-row {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .5rem 1rem .35rem;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.list-chips-label {
+  font-family: 'DM Mono', monospace;
+  font-size: .58rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  flex-shrink: 0;
+  margin-right: .3rem;
+}
+.list-chip {
+  flex-shrink: 0;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  font-size: .68rem;
+  font-weight: 700;
+  padding: 0 .7rem;
+  border-radius: 99px;
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.list-chip.active {
+  background: var(--accent2, #3b82f6);
+  border-color: var(--accent2, #3b82f6);
+  color: #fff;
+}
+
+/* ── Chips de lista en el modal de plantilla cliente ── */
+.tpl-list-row {
+  margin-top: .8rem;
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+}
+.tpl-list-label {
+  font-family: 'DM Mono', monospace;
+  font-size: .58rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.tpl-list-chips {
+  display: flex;
+  gap: .35rem;
+  flex-wrap: wrap;
+}
+.tpl-list-chip {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  font-size: .7rem;
+  font-weight: 700;
+  padding: .4rem .8rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all .15s;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.tpl-list-chip.active {
+  background: var(--accent2, #3b82f6);
+  border-color: var(--accent2, #3b82f6);
+  color: #fff;
+}
+
+/* ── Indicador "sin precio en lista activa" ── */
+/* Se muestra en card de Stock y en resultados del buscador cuando el
+   producto existe en otra(s) lista(s) pero no en la activa. */
+.price-other-list {
+  display: inline-block;
+  font-family: 'DM Mono', monospace;
+  font-size: .62rem;
+  color: var(--warn);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+
+/* Resultados del buscador con producto sin precio en la lista activa */
+.osr-card.osr-noprice {
+  opacity: .7;
+}
+.osr-card.osr-noprice .osr-add-btn,
+.osr-card.osr-noprice .osr-qty {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+/* Items del pedido con _noPrice (cambió de lista y este producto no
+   tiene precio en la nueva) — se ven atenuados con borde rojo */
+.order-item.order-item-noprice {
+  border-color: var(--red);
+  opacity: .85;
+}
+.order-item.order-item-noprice .order-item-name {
+  color: var(--muted);
+}
+
+/* ── Sección Nube (Supabase) — v6.5 ── */
+.sb-config { display: flex; flex-direction: column; gap: .5rem; margin-top: .25rem; }
+.sb-config input {
+  width: 100%; padding: .6rem .7rem; font-size: .85rem;
+  border: 1px solid var(--border, #d1d5db); border-radius: 10px;
+  background: var(--card, #fff); color: var(--text, #111);
+}
+.sb-btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.sb-status {
+  font-size: .75rem; color: var(--muted, #6b7280); min-height: 1em;
+  margin-top: .1rem; line-height: 1.4; white-space: pre-wrap;
+}
+.sb-status-ok  { color: #16a34a; }
+.sb-status-err { color: #dc2626; }
+
+/* ── Badges de estado de nube por pedido — v6.5 ── */
+.badge-cloud-ok, .badge-cloud-pend {
+  font-size: .65rem; padding: .1rem .4rem; border-radius: 999px;
+  margin-left: .35rem; white-space: nowrap;
+}
+.badge-cloud-ok   { background: #dcfce7; color: #166534; }
+.badge-cloud-pend { background: #fef9c3; color: #854d0e; }
+
+</style>
+</head>
+<body>
+
+<!-- ══ TAB: INICIO ══ -->
+<div class="tab-page active" id="pageHome">
+  <div class="page-scroll">
+    <div class="home-hero">
+      <h1 class="hero-title">VENDEDOR</h1>
+      <p class="hero-sub">configurá tu usuario y descargá los datos de central</p>
+    </div>
+
+    <div class="config-section">
+      <div class="section-title">👤 Tu identidad</div>
+      <div class="field-group">
+        <label>Nombre de usuario</label>
+        <input type="text" id="homeUserName" placeholder="Ej: Juan Pérez" autocomplete="off">
+      </div>
+      <div class="field-group">
+        <label>Código corto (3-4 letras)</label>
+        <input type="text" id="homeUserCode" placeholder="Ej: JUA" autocomplete="off" maxlength="6" style="text-transform:uppercase">
+      </div>
+      <button class="btn-save-config" onclick="saveUserConfig()">Guardar</button>
+    </div>
+
+    <div class="config-section">
+      <div class="section-title">📥 Datos de central</div>
+      <p class="info-text">Importá el archivo JSON que te pasó la central con el stock y precios actualizados.</p>
+
+      <label class="btn-import">
+        <span>⬆</span>
+        <span class="btn-import-text">
+          <span class="btn-import-name">Importar archivo</span>
+          <span class="btn-import-desc">stock + precios desde StockMerger</span>
+        </span>
+        <input type="file" accept=".json" onchange="importVendorData(event)" style="display:none">
+      </label>
+
+      <div class="home-info" id="homeStockInfo">Sin stock cargado.</div>
+      <div class="home-info" id="homePricesInfo">Sin precios cargados.</div>
+    </div>
+
+    <div class="config-section">
+      <div class="section-title">☁️ Nube (Supabase)</div>
+      <p class="info-text">Opcional. Si la central te pasó la URL, la key y el ID de tienda, podés traer el catálogo sin archivos. Si no hay internet, importá el archivo .json.</p>
+      <div class="sb-config">
+        <input type="text" id="sbUrl" placeholder="URL (https://xxxxx.supabase.co)" autocomplete="off">
+        <input type="password" id="sbKey" placeholder="anon public key" autocomplete="off">
+        <input type="text" id="sbNs" placeholder="ID de tienda (default)" autocomplete="off">
+        <div class="sb-btn-row">
+          <button class="btn-save-config" onclick="scSaveConfigFromUI()">💾 Guardar</button>
+          <button class="btn-save-config" onclick="scTestConnection()">🔌 Probar</button>
+        </div>
+        <button class="btn-import" onclick="pullCatalog()" style="width:100%;justify-content:center;cursor:pointer">
+          <span>☁⬇</span>
+          <span class="btn-import-text">
+            <span class="btn-import-name">Sincronizar desde la nube</span>
+            <span class="btn-import-desc">trae stock + precios de la central</span>
+          </span>
+        </button>
+        <div class="sb-status" id="sbStatus"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TAB: STOCK ══ -->
+<div class="tab-page" id="pageStock">
+  <div class="stock-results">
+    <div class="stock-template-bar">
+      <button class="btn-template" onclick="generateClientTemplate()">
+        📄 Generar plantilla para cliente
+      </button>
+    </div>
+    <!-- Chips selectores de lista activa (precios mostrados según esta lista) -->
+    <div class="list-chips-row">
+      <span class="list-chips-label">Precios:</span>
+      <div class="list-chip" data-list="act"  onclick="setActiveList('act')">Lista 7</div>
+      <div class="list-chip" data-list="dist" onclick="setActiveList('dist')">Distribuidor</div>
+      <div class="list-chip" data-list="vip"  onclick="setActiveList('vip')">VIP</div>
+    </div>
+    <div class="search-bar">
+      <input type="text" id="stockSearchInput" placeholder="🔍 Buscar producto, marca o rubro..." oninput="searchStock()">
+      <button class="clear-btn" id="stockClearBtn" onclick="clearStockSearch()">✕</button>
+    </div>
+    <div class="chips-row">
+      <div class="chip active" onclick="setStockFilter('all',this)">Todos</div>
+      <div class="chip" onclick="setStockFilter('available',this)">Con stock</div>
+      <div class="chip" onclick="setStockFilter('lowstock',this)">⚠️ Bajo</div>
+    </div>
+    <div class="result-count" id="stockCount">0 productos</div>
+    <div class="scroll-body">
+      <div id="stockList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TAB: PEDIDO ACTUAL ══ -->
+<div class="tab-page" id="pageOrder">
+  <div class="order-wrap">
+    <div class="scroll-body">
+      <!-- Barra superior con acciones del pedido en curso -->
+      <div class="order-topbar">
+        <button class="btn-new-order" onclick="handleNewOrder()" title="Empezar otro pedido">🆕 Nuevo pedido</button>
+        <button class="btn-save-draft" onclick="saveDraft();renderOrderTab();updateOrderBadge();renderOrdersTab();" title="Guardar este pedido para continuarlo más tarde">💾 Guardar borrador</button>
+      </div>
+
+      <!-- Chips selectores de lista activa — los precios y el buscador
+           respetan esta lista. Cambiarla con items cargados pide confirm. -->
+      <div class="list-chips-row">
+        <span class="list-chips-label">Lista:</span>
+        <div class="list-chip" data-list="act"  onclick="setActiveList('act')">Lista 7</div>
+        <div class="list-chip" data-list="dist" onclick="setActiveList('dist')">Distribuidor</div>
+        <div class="list-chip" data-list="vip"  onclick="setActiveList('vip')">VIP</div>
+      </div>
+
+      <!-- Sección de plantilla cliente -->
+      <div class="template-section">
+        <div class="template-section-title">📄 Plantilla para el cliente</div>
+        <div class="template-actions">
+          <button class="btn-template-action" onclick="generateClientTemplate()">
+            <span>⬇</span>
+            <span class="bta-text">
+              <span class="bta-name">Generar plantilla</span>
+              <span class="bta-desc">Excel con stock + precios</span>
+            </span>
+          </button>
+          <label class="btn-template-action btn-template-import">
+            <span>⬆</span>
+            <span class="bta-text">
+              <span class="bta-name">Cargar plantilla rellenada</span>
+              <span class="bta-desc">Crea el pedido automáticamente</span>
+            </span>
+            <input type="file" accept=".xlsx,.xls" onchange="importClientTemplate(event)" style="display:none">
+          </label>
+        </div>
+      </div>
+
+      <div class="field-group" style="padding:.75rem 1rem 0">
+        <label>Cliente</label>
+        <input type="text" id="orderClient" placeholder="Nombre del cliente" oninput="updateOrderClient()" autocomplete="off">
+      </div>
+
+      <!-- Buscador rápido para agregar productos (pedidos manuscritos) -->
+      <div class="order-search-section">
+        <div class="section-title" style="padding:.75rem 1rem .25rem">🔎 Buscar producto para agregar</div>
+        <div class="order-search-wrap">
+          <input type="text" id="orderSearchInput" class="order-search-input"
+            placeholder="Escribí 2+ letras del producto, marca o rubro..."
+            oninput="orderSearchInput(this.value)" autocomplete="off"
+            autocorrect="off" autocapitalize="off" spellcheck="false">
+          <button class="order-search-clear" onclick="clearOrderSearchUI()" title="Limpiar">✕</button>
+        </div>
+        <div id="orderSearchResults" class="order-search-results"></div>
+      </div>
+
+      <div class="section-title" style="padding:.75rem 1rem .25rem">🛒 Productos del pedido</div>
+      <div id="orderItemsList"></div>
+
+      <div class="field-group" style="padding:.5rem 1rem 1rem">
+        <label>Notas (opcional)</label>
+        <textarea id="orderNotes" rows="2" placeholder="Aclaraciones del cliente..." oninput="updateOrderNotes()"></textarea>
+      </div>
+    </div>
+    <div class="order-footer">
+      <div class="order-total-row">
+        <span class="ot-label">TOTAL</span>
+        <span class="ot-value" id="orderTotal">$0,00</span>
+      </div>
+      <div class="order-actions">
+        <button class="btn-clear-order" onclick="handleClearOrder()">Vaciar</button>
+        <button class="btn-send-order" id="btnSendOrder" onclick="handleSendOrder()" disabled>⬇ Enviar a central</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TAB: MIS PEDIDOS ══ -->
+<div class="tab-page" id="pageOrders">
+  <div class="scroll-body">
+    <div class="section-title" style="padding:.75rem 1rem .25rem">📋 Mis pedidos</div>
+    <div class="chips-row" style="padding:.2rem 1rem .55rem">
+      <div class="chip active" onclick="setOrdersFilter('all',this)">Todos</div>
+      <div class="chip" onclick="setOrdersFilter('draft',this)">📝 Borradores <span id="chipDraftCount"></span></div>
+      <div class="chip" onclick="setOrdersFilter('sent',this)">✓ Enviados <span id="chipSentCount"></span></div>
+    </div>
+    <div id="ordersList"></div>
+  </div>
+</div>
+
+<!-- ══ TAB BAR ══ -->
+<div class="tab-bar">
+  <button class="tab-btn" id="tab-home" onclick="switchTab('home')">
+    <span class="tab-icon">🏠</span>
+    <span>INICIO</span>
+  </button>
+  <button class="tab-btn" id="tab-stock" onclick="switchTab('stock')">
+    <span class="tab-icon">📦</span>
+    <span>STOCK</span>
+  </button>
+  <button class="tab-btn" id="tab-order" onclick="switchTab('order')">
+    <span class="tab-icon">📝</span>
+    <span>PEDIDO</span>
+    <span class="tab-badge" id="orderBadge" style="display:none">0</span>
+  </button>
+  <button class="tab-btn" id="tab-orders" onclick="switchTab('orders')">
+    <span class="tab-icon">📋</span>
+    <span>HISTORIAL</span>
+  </button>
+</div>
+
+<!-- ══ OVERLAY: AGREGAR PRODUCTO ══ -->
+<div class="overlay" id="addOverlay">
+  <div class="add-overlay-content">
+    <div class="add-overlay-name" id="addOverlayName"></div>
+    <div class="add-overlay-sub" id="addOverlaySub"></div>
+    <div class="add-overlay-qty-row">
+      <label>Cantidad:</label>
+      <input type="number" id="addOverlayQty" value="1" min="1">
+    </div>
+    <div class="add-overlay-actions">
+      <button class="btn-cancel" onclick="closeAddOverlay()">Cancelar</button>
+      <button class="btn-confirm" onclick="confirmAddProduct()">Agregar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ OVERLAY: NOMBRE DEL CLIENTE (para generar plantilla) ══ -->
+<!-- Reemplaza al prompt() del navegador, que no funciona bien en algunos
+     webviews móviles ni en PWAs instaladas.
+     Incluye selector de lista (Act/Dist/VIP) para elegir con qué precios
+     se genera la plantilla. -->
+<div class="overlay" id="clientNameOverlay">
+  <div class="add-overlay-content">
+    <div class="add-overlay-name">Nombre del cliente</div>
+    <div class="add-overlay-sub">Para quién es esta plantilla</div>
+    <div class="add-overlay-qty-row">
+      <input type="text" id="clientNameInput" placeholder="Ej: pipi 2"
+        autocomplete="off" autocorrect="off" autocapitalize="words" style="flex:1">
+    </div>
+    <!-- Chips de lista para elegir con qué precios generar la plantilla -->
+    <div class="tpl-list-row">
+      <span class="tpl-list-label">Lista de precios:</span>
+      <div class="tpl-list-chips">
+        <div class="tpl-list-chip" data-list="act"  onclick="setTemplateList('act',this)">Lista 7</div>
+        <div class="tpl-list-chip" data-list="dist" onclick="setTemplateList('dist',this)">Distribuidor</div>
+        <div class="tpl-list-chip" data-list="vip"  onclick="setTemplateList('vip',this)">VIP</div>
+      </div>
+    </div>
+    <div class="add-overlay-actions">
+      <button class="btn-cancel" onclick="closeClientNameOverlay()">Cancelar</button>
+      <button class="btn-confirm" onclick="confirmClientName()">Generar plantilla</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ OVERLAY: ELEGIR QUÉ HACER CON EL PEDIDO ACTUAL (v6.2) ══ -->
+<!-- Aparece cuando el vendedor toca "Nuevo pedido" o "Cargar borrador"
+     teniendo contenido en el pedido actual. Tres opciones:
+       1. Guardar el actual como borrador
+       2. Descartar el actual
+       3. Cancelar (cerrar el overlay sin hacer nada) -->
+<div class="overlay" id="orderChoiceOverlay">
+  <div class="add-overlay-content order-choice-content">
+    <div class="add-overlay-name" id="orderChoiceTitle"></div>
+    <div class="add-overlay-sub" id="orderChoiceMessage" style="white-space:pre-line"></div>
+    <div class="order-choice-actions">
+      <button class="btn-choice-save" id="orderChoiceSaveBtn" onclick="orderChoiceSave()">💾 Guardar</button>
+      <button class="btn-choice-discard" id="orderChoiceDiscardBtn" onclick="orderChoiceDiscard()">🗑 Descartar</button>
+      <button class="btn-choice-cancel" onclick="closeOrderChoiceOverlay()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* Registro del Service Worker (PWA). Si falla, se ignora y la app sigue igual. */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function (e) {
+      console.warn('SW no registrado:', e && e.message);
+    });
+  });
+}
+</script>
+<script>
+// ════════════════════════════════════════════════════════════════════
+// STATE.JS — Estado global de StockVendedor + persistencia localStorage
+// ════════════════════════════════════════════════════════════════════
+//
+// 🆕 v6 — MODELO SIMPLIFICADO
+//   Cada producto del stock ahora tiene un único campo `qty` (cantidad
+//   disponible). Antes había `qtyA` (tienda) + `qtyB` (camino) + `total`
+//   + `origin`. Como StockMerger v24 eliminó el concepto de "stock en
+//   camino", acá también lo sacamos.
+//
+//   Migración automática: si loadStock() detecta entries viejas con
+//   qtyA/qtyB, las consolida en qty = qtyA + qtyB y reguarda. Cubre el
+//   caso del vendedor que abre la nueva versión con datos viejos en
+//   localStorage.
+//
+// 🔧 PARA EL PROGRAMADOR QUE AGREGUE BACKEND:
+//   Las funciones save* / load* serán los puntos de integración con
+//   el servidor. Por ahora todo en localStorage del navegador.
+//
+// KEYS DE LOCALSTORAGE:
+//   "vendor_user"           → nombre del vendedor + lista asignada
+//   "vendor_stock"          → stock importado de central
+//   "vendor_prices"         → lista de precios asignada
+//   "vendor_orders"         → historial de pedidos
+//   "vendor_current_order"  → pedido en construcción (borrador)
+//
+// ════════════════════════════════════════════════════════════════════
+
+const state = {
+  // Usuario actual
+  user: {
+    name: '',           // nombre del vendedor (ej: "Julio Barrientos")
+    code: '',           // código corto del vendedor (ej: "JUL")
+    defaultList: 'act', // última lista usada — preseleccionada al arrancar pedidos.
+                        // Antes este campo era `list` y se asumía fijo por vendedor;
+                        // como los vendedores rotan entre listas según el cliente,
+                        // ahora la lista vive a nivel de pedido (no de usuario).
+                        // Este campo es solo "qué chip aparece activo por defecto".
+  },
+
+  // Lista activa en la UI (Stock + Pedido + buscador). Cambia con los chips
+  // selectores de cada pestaña. Se persiste para sobrevivir al refresh.
+  activeList: 'act',    // 'act' | 'dist' | 'vip'
+
+  // Stock importado de central — modelo v6
+  stock: [],            // array de productos: { _key, product, qty, marca, rubro }
+  stockUpdatedAt: '',   // ISO date del último import
+
+  // 🆕 v6.4 — PRECIOS POR LISTA
+  // Antes era un mapa plano: { normalizedKey: { label, marca, rubro, price } }.
+  // Ahora es por lista: { act: {...}, dist: {...}, vip: {...} } donde cada
+  // sublista tiene la misma estructura interna anterior.
+  //
+  // Usar SIEMPRE el helper getProductPrice(key, list?) en lugar de acceder
+  // directo — ese helper resuelve la lista activa por defecto.
+  prices: {
+    act:  {},
+    dist: {},
+    vip:  {},
+  },
+  pricesUpdatedAt: '',
+
+  // Pedido en construcción (borrador actual)
+  // Cada item: { key, label, marca, rubro, qty, price, subtotal }
+  // _draftId: si este pedido viene de un borrador del historial, guarda
+  //   su id para que al enviar/guardar reemplace la entrada en lugar
+  //   de duplicarla. null cuando es un pedido recién creado.
+  currentOrder: {
+    client: '',        // nombre del cliente
+    items: [],
+    notes: '',
+    createdAt: '',
+    _draftId: null,
+  },
+
+  // Historial de pedidos
+  // Cada pedido: { id, client, items, total, status, createdAt, sentAt, vendor }
+  // status: 'draft' | 'sent' | 'accepted' | 'rejected'
+  orders: [],
+
+  // Filtro UI
+  stockFilter: 'all',  // 'all' | 'available' | 'lowstock'
+  stockSearch: '',
+};
+
+// ══ PERSISTENCIA ══
+
+// Helper centralizado para guardar en localStorage con manejo de cuota.
+// Si el navegador se queda sin espacio, avisa con toast (una vez cada 30s
+// por key, para no bombardear si la operación es masiva).
+// Devuelve true si guardó OK, false si falló.
+const _lastQuotaWarn = {};
+function _safeSetItem(key, value, label) {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (e) {
+    const isQuota = e && (
+      e.code === 22 ||
+      e.code === 1014 ||
+      e.name === 'QuotaExceededError' ||
+      e.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+      (e.message || '').toLowerCase().includes('quota')
+    );
+    if (isQuota) {
+      const now = Date.now();
+      if (!_lastQuotaWarn[key] || now - _lastQuotaWarn[key] > 30_000) {
+        _lastQuotaWarn[key] = now;
+        if (typeof toast === 'function') {
+          toast(
+            `⚠️ El almacenamiento del navegador está lleno. ${label || 'Algunos cambios'} ` +
+            `podrían perderse al recargar. Considerá exportar tus pedidos como Excel y borrar los viejos del historial.`,
+            'err'
+          );
+        }
+      }
+      console.warn(`[QUOTA] ${key} no se pudo guardar:`, e.message);
+    } else {
+      console.warn(`No se pudo guardar ${key}:`, e.message);
+    }
+    return false;
+  }
+}
+
+// Normaliza un item de stock al shape v6.
+// Acepta tanto el modelo nuevo (qty) como el viejo (qtyA + qtyB).
+// Esto se usa tanto al cargar de localStorage como al importar JSON
+// de StockMerger (porque la central puede mandar todavía el compat dual).
+//
+// Devuelve null si el item no es válido (sin _key o sin product).
+// Setea una flag `_migrated` en el resultado si tuvo que consolidar
+// qtyA + qtyB para que el caller pueda contar las migraciones.
+function _normalizeStockItem(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+
+  // Detectar si viene del modelo viejo (sin qty pero con qtyA/qtyB)
+  let qty, migrated = false;
+  if (raw.qty != null) {
+    // Modelo nuevo
+    qty = Math.max(0, parseFloat(raw.qty) || 0);
+  } else if (raw.qtyA != null || raw.qtyB != null) {
+    // Modelo viejo — consolidar
+    const qtyA = Math.max(0, parseFloat(raw.qtyA) || 0);
+    const qtyB = Math.max(0, parseFloat(raw.qtyB) || 0);
+    qty = qtyA + qtyB;
+    migrated = true;
+  } else {
+    qty = 0;
+  }
+
+  // marca/rubro: priorizar campos explícitos, caer a extraA/extraA2 de
+  // versiones viejas como compat. Si no hay nada, string vacío.
+  const marca = raw.marca || raw.extraA  || '';
+  const rubro = raw.rubro || raw.extraA2 || '';
+
+  const product = String(raw.product || '').trim();
+  const key = raw._key || (typeof normalize === 'function' ? normalize(product) : product.toLowerCase());
+
+  if (!key || !product) return null;
+
+  const item = {
+    _key:    key,
+    product,
+    qty,
+    marca:   String(marca),
+    rubro:   String(rubro),
+  };
+  if (migrated) item._migrated = true;
+  return item;
+}
+
+// Usuario
+function saveUser() {
+  _safeSetItem('vendor_user', JSON.stringify(state.user), 'tu configuración de usuario');
+}
+function loadUser() {
+  try {
+    const u = JSON.parse(localStorage.getItem('vendor_user') || 'null');
+    if (!u) return;
+    state.user.name = u.name || '';
+    state.user.code = u.code || '';
+
+    // Migración v6.4: u.list (modelo viejo de "lista fija del vendedor")
+    // se convierte en defaultList (qué chip aparece preseleccionado en
+    // pedidos nuevos). Si el campo no existe en el JSON viejo, usar 'act'.
+    const legacyList = u.list || '';
+    state.user.defaultList = u.defaultList || legacyList || 'act';
+
+    if (legacyList && !u.defaultList) {
+      console.log(`[migración v6.4] user.list='${legacyList}' → defaultList`);
+      saveUser(); // re-guardar para que la próxima vez ya esté con el formato nuevo
+    }
+  } catch (e) {}
+}
+
+// activeList — la lista que el vendedor tiene activa en la UI ahora mismo.
+// Se persiste para sobrevivir al refresh; al cargarla, si no existe usa el
+// defaultList del usuario.
+function saveActiveList() {
+  _safeSetItem('vendor_active_list', state.activeList, 'la lista activa');
+}
+function loadActiveList() {
+  try {
+    const v = localStorage.getItem('vendor_active_list');
+    if (v === 'act' || v === 'dist' || v === 'vip') {
+      state.activeList = v;
+    } else {
+      // No había persistencia previa — usar el defaultList del usuario
+      state.activeList = state.user.defaultList || 'act';
+    }
+  } catch (e) {
+    state.activeList = 'act';
+  }
+}
+
+// Stock
+function saveStock() {
+  const payload = { stock: state.stock, stockUpdatedAt: state.stockUpdatedAt };
+  _safeSetItem('vendor_stock', JSON.stringify(payload), 'el stock importado');
+}
+function loadStock() {
+  try {
+    const p = JSON.parse(localStorage.getItem('vendor_stock') || 'null');
+    if (!p) return;
+    const raw = p.stock || [];
+
+    let migrated = 0;
+    state.stock = raw
+      .map(s => {
+        const item = _normalizeStockItem(s);
+        if (item && item._migrated) {
+          migrated++;
+          delete item._migrated;
+        }
+        return item;
+      })
+      .filter(s => s !== null);
+    state.stockUpdatedAt = p.stockUpdatedAt || '';
+
+    if (migrated > 0) {
+      console.log(`[migración v6] ${migrated} producto(s) consolidados de qtyA+qtyB → qty`);
+      // Re-guardar con el modelo nuevo así no se vuelve a migrar la próxima vez
+      saveStock();
+    }
+  } catch (e) {
+    console.warn('No se pudo cargar stock guardado:', e.message);
+    state.stock = [];
+  }
+}
+
+// Precios
+function savePrices() {
+  const payload = { prices: state.prices, pricesUpdatedAt: state.pricesUpdatedAt };
+  _safeSetItem('vendor_prices', JSON.stringify(payload), 'los precios');
+}
+function loadPrices() {
+  try {
+    const p = JSON.parse(localStorage.getItem('vendor_prices') || 'null');
+    if (!p) return;
+
+    const raw = p.prices || {};
+
+    // 🆕 v6.4 — Detectar formato:
+    //   Viejo (plano):    { key1: {label,marca,rubro,price}, key2: {...}, ... }
+    //   Nuevo (por lista): { act: { key1: {...}, ... }, dist: {...}, vip: {...} }
+    //
+    // Heurística: si las claves de primer nivel son 'act'/'dist'/'vip',
+    // es formato nuevo. Si no, es plano y hay que migrar.
+    const topKeys = Object.keys(raw);
+    const isNewFormat = topKeys.every(k => k === 'act' || k === 'dist' || k === 'vip');
+
+    if (isNewFormat) {
+      // Asegurar que las 3 listas existan (aunque sea vacías) para que
+      // el resto del código no haga checks extra cada vez.
+      state.prices = {
+        act:  raw.act  || {},
+        dist: raw.dist || {},
+        vip:  raw.vip  || {},
+      };
+    } else {
+      // Modelo viejo — todos los precios estaban en una sola lista (la que
+      // el vendedor tenía configurada como user.list). Los migramos a
+      // state.prices[user.defaultList] y dejamos las otras dos vacías.
+      const targetList = state.user.defaultList || 'act';
+      state.prices = {
+        act:  {},
+        dist: {},
+        vip:  {},
+      };
+      state.prices[targetList] = raw;
+      console.log(`[migración v6.4] precios planos → state.prices['${targetList}'] (${Object.keys(raw).length} productos)`);
+      // Re-guardar con el formato nuevo
+      state.pricesUpdatedAt = p.pricesUpdatedAt || '';
+      savePrices();
+      return;
+    }
+
+    state.pricesUpdatedAt = p.pricesUpdatedAt || '';
+  } catch (e) {
+    console.warn('No se pudieron cargar precios guardados:', e.message);
+  }
+}
+
+// Pedidos
+function saveOrders() {
+  _safeSetItem('vendor_orders', JSON.stringify(state.orders), 'el historial de pedidos');
+}
+function loadOrders() {
+  try {
+    state.orders = JSON.parse(localStorage.getItem('vendor_orders') || '[]');
+  } catch (e) { state.orders = []; }
+}
+
+// Pedido en construcción (borrador) — se persiste para que el vendedor
+// no pierda el trabajo si se le cierra la pestaña, se queda sin batería,
+// o cualquier otra cosa interrumpe el armado del pedido.
+function saveCurrentOrder() {
+  _safeSetItem('vendor_current_order', JSON.stringify(state.currentOrder), 'el pedido en curso');
+}
+function loadCurrentOrder() {
+  try {
+    const v = JSON.parse(localStorage.getItem('vendor_current_order') || 'null');
+    if (v && typeof v === 'object') {
+      state.currentOrder = {
+        client:    typeof v.client === 'string' ? v.client : '',
+        items:     Array.isArray(v.items) ? v.items : [],
+        notes:     typeof v.notes === 'string' ? v.notes : '',
+        createdAt: typeof v.createdAt === 'string' ? v.createdAt : '',
+        _draftId:  typeof v._draftId === 'string' ? v._draftId : null,
+      };
+    }
+  } catch (e) { /* dejar el default */ }
+}
+
+// Cargar todo al inicio.
+// IMPORTANTE: el orden importa.
+//   - loadUser primero porque loadActiveList depende de user.defaultList
+//     como fallback si no hay activeList persistida.
+//   - loadPrices después de loadUser porque la migración del formato
+//     viejo necesita user.defaultList para decidir a qué lista migrar.
+loadUser();
+loadActiveList();
+loadStock();
+loadPrices();
+loadOrders();
+loadCurrentOrder();
+
+// ════════════════════════════════════════════════════════════════════
+// UTILS.JS — Funciones de utilidad compartidas
+// ════════════════════════════════════════════════════════════════════
+// Copiado de StockMerger. Mantener sincronizado si se modifica allá.
+// ════════════════════════════════════════════════════════════════════
+
+function normalize(s) {
+  return String(s).trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[.\-_/\\]/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+}
+
+function fmt(n) {
+  return Number(n).toLocaleString('es-AR');
+}
+
+function fmtMoney(n) {
+  return '$' + Number(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+// Escape HTML — usar SIEMPRE al interpolar strings de usuario o datos
+// externos en HTML. El cliente puede escribir cualquier cosa en el input
+// "nombre del cliente", y los nombres de productos vienen del JSON exportado
+// por StockMerger (también un input externo).
+function escHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+// Toast notifications
+function toast(msg, type) {
+  const div = document.createElement('div');
+  div.className = 'toast' + (type === 'err' ? ' err' : type === 'ok' ? ' ok' : '');
+  div.textContent = msg;
+  document.body.appendChild(div);
+  setTimeout(() => div.classList.add('visible'), 10);
+  setTimeout(() => {
+    div.classList.remove('visible');
+    setTimeout(() => div.remove(), 300);
+  }, 3500);
+}
+
+// ID único para pedidos
+function generateOrderId() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const r = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `${y}${m}${day}-${r}`;
+}
+
+// Fecha legible
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleString('es-AR', {
+    day: '2-digit', month: '2-digit', year: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function fmtDateOnly(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+// Escapar HTML para evitar XSS en strings interpolados.
+// CRÍTICO: usar siempre que se interpole un valor que venga de:
+//   - JSON importado de la central (productos, marcas, rubros)
+//   - Input del usuario (nombre de cliente, notas, nombre/código de vendedor)
+// No usar para valores internos controlados (ids generados, números, etc).
+function escHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+// ════════════════════════════════════════════════════════════════════
+// IMPORT.JS — Importar stock y listas de precios enviadas por la central
+// ════════════════════════════════════════════════════════════════════
+//
+// 🆕 v6.4 — JSON UNIFICADO CON LAS 3 LISTAS
+//   La central ahora exporta UN SOLO archivo con stock + las tres listas
+//   de precios (Act, Dist, VIP). El vendedor tiene los tres precios
+//   disponibles y elige cuál usar por pedido vía el chip selector.
+//
+//   Acá manejamos dos formatos:
+//     - vendor_data_v2 (nuevo): prices: { act:{}, dist:{}, vip:{} }
+//     - vendor_data    (viejo, una lista): prices: { ... plano ... } + data.list
+//
+//   El v2 reemplaza COMPLETAMENTE las 3 listas locales. El v1 reemplaza
+//   solo la lista que venga en data.list, dejando las otras intactas
+//   (las que el vendedor ya tenía cargadas).
+//
+// 🔧 PARA EL PROGRAMADOR QUE AGREGUE BACKEND:
+//   Reemplazar este flujo por una llamada al servidor que descargue
+//   el stock + las 3 listas según el vendedor logueado.
+//
+// FORMATO ESPERADO (v2):
+// {
+//   _app: "StockMerger",
+//   _type: "vendor_data_v2",
+//   _version: 2,
+//   _exportedAt: "2026-05-23T...",
+//   stock:  [ { _key, product, qty, marca, rubro }, ... ],
+//   prices: {
+//     act:  { normalizedKey: { label, marca, rubro, price }, ... },
+//     dist: { ... },
+//     vip:  { ... }
+//   }
+// }
+// ════════════════════════════════════════════════════════════════════
+
+// Normaliza una sublista de precios al shape interno.
+// Devuelve { normalized, valid, descartados }.
+function _normalizePricesList(raw) {
+  const out = {};
+  let valid = 0, descartados = 0;
+  if (!raw || typeof raw !== 'object') return { normalized: out, valid, descartados };
+  for (const k in raw) {
+    const p = raw[k];
+    if (!p || typeof p !== 'object') { descartados++; continue; }
+    const price = parseFloat(p.price);
+    if (isNaN(price) || price < 0) { descartados++; continue; }
+    out[k] = {
+      label: String(p.label || ''),
+      marca: String(p.marca || ''),
+      rubro: String(p.rubro || ''),
+      price,
+    };
+    valid++;
+  }
+  return { normalized: out, valid, descartados };
+}
+
+function importVendorData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = '';
+
+  const reader = new FileReader();
+  reader.onload = evt => {
+    try {
+      const data = JSON.parse(evt.target.result);
+      applyVendorData(data, { sourceLabel: 'archivo' });
+    } catch (err) {
+      console.error('Error al importar:', err);
+      toast('Error al leer el archivo: ' + (err.message || 'archivo inválido'), 'err');
+    }
+  };
+  reader.onerror = () => toast('No se pudo leer el archivo.', 'err');
+  reader.readAsText(file, 'utf-8');
+}
+
+// ════════════════════════════════════════════════════════════════════
+// applyVendorData(data, opts) — Aplica un objeto vendor_data_v2 ya parseado.
+//
+// Extraído de importVendorData() en v6.5. Lo usan DOS orígenes:
+//   1. importVendorData()  → archivo JSON elegido por el vendedor.
+//   2. pullCatalog() (supabase.js) → descarga directa desde la nube.
+//
+// opts:
+//   sourceLabel  texto para mensajes ('archivo' | 'la nube'). Solo cosmético.
+//   askConfirm   si true (default) pide confirmación antes de reemplazar.
+//
+// Devuelve true si aplicó los datos, false si se canceló o falló validación.
+// ════════════════════════════════════════════════════════════════════
+function applyVendorData(data, opts = {}) {
+  const askConfirm = opts.askConfirm !== false;
+
+  // Validaciones del envoltorio
+  if (!data || !data._app || data._app !== 'StockMerger') {
+    toast('Los datos no son válidos (no vienen de StockMerger).', 'err');
+    return false;
+  }
+  if (!Array.isArray(data.stock)) {
+    toast('Los datos no contienen un stock válido.', 'err');
+    return false;
+  }
+  if (!data.prices || typeof data.prices !== 'object') {
+    toast('Los datos no contienen precios válidos.', 'err');
+    return false;
+  }
+
+  // ── Detectar formato ──
+  // v2 (nuevo): _type === 'vendor_data_v2' Y prices tiene las claves act/dist/vip
+  // v1 (viejo): _type === 'vendor_data' Y prices es un mapa plano + data.list indica cuál es
+  const isV2 = data._type === 'vendor_data_v2'
+            || (data.prices.act != null || data.prices.dist != null || data.prices.vip != null);
+
+  // ── Normalizar stock al shape v6 ──
+  let migradosStock = 0;
+  const stockNormalizado = data.stock
+    .map(raw => {
+      const item = _normalizeStockItem(raw);
+      if (item && item._migrated) {
+        migradosStock++;
+        delete item._migrated;
+      }
+      return item;
+    })
+    .filter(s => s !== null);
+
+  // ── Normalizar precios ──
+  let pricesNormalizadas, totalValidos = 0, totalDescartados = 0;
+  let infoListas = []; // textos por lista para el confirm
+
+  if (isV2) {
+    // Tres listas separadas
+    const a = _normalizePricesList(data.prices.act);
+    const d = _normalizePricesList(data.prices.dist);
+    const v = _normalizePricesList(data.prices.vip);
+    pricesNormalizadas = { act: a.normalized, dist: d.normalized, vip: v.normalized };
+    totalValidos = a.valid + d.valid + v.valid;
+    totalDescartados = a.descartados + d.descartados + v.descartados;
+    if (a.valid) infoListas.push(`Lista 7: ${a.valid} precios`);
+    if (d.valid) infoListas.push(`Lista Distribuidor: ${d.valid} precios`);
+    if (v.valid) infoListas.push(`Lista VIP: ${v.valid} precios`);
+  } else {
+    // Formato viejo — una sola lista (la que venía en data.list)
+    const targetList = (data.list === 'act' || data.list === 'dist' || data.list === 'vip')
+      ? data.list : null;
+    if (!targetList) {
+      toast('Datos en formato viejo sin lista identificada — no se pueden importar.', 'err');
+      return false;
+    }
+    const r = _normalizePricesList(data.prices);
+    // Mantenemos las otras dos listas que el vendedor ya tenía;
+    // sólo reemplazamos la que viene en estos datos.
+    pricesNormalizadas = {
+      act:  state.prices.act  || {},
+      dist: state.prices.dist || {},
+      vip:  state.prices.vip  || {},
+    };
+    pricesNormalizadas[targetList] = r.normalized;
+    totalValidos = r.valid;
+    totalDescartados = r.descartados;
+    const listName = listDisplayName(targetList);
+    infoListas.push(`Lista ${listName}: ${r.valid} precios`);
+  }
+
+  const stockCount = stockNormalizado.length;
+  const fecha = data._exportedAt
+    ? new Date(data._exportedAt).toLocaleDateString('es-AR')
+    : 'fecha desconocida';
+
+  if (askConfirm) {
+    const origen = opts.sourceLabel === 'la nube' ? ' (desde la nube)' : '';
+    let msg = `¿Importar datos del ${fecha}${origen}?\n\n` +
+              `• ${stockCount} productos en stock\n`;
+    infoListas.forEach(line => { msg += `• ${line}\n`; });
+    if (totalDescartados > 0) msg += `• ${totalDescartados} precios inválidos se descartaron\n`;
+    if (migradosStock > 0)    msg += `• ${migradosStock} productos venían en formato viejo (se actualizaron)\n`;
+
+    if (!isV2) {
+      msg += `\n⚠️ Estos datos son formato viejo (solo traen una lista). ` +
+             `Las otras dos listas quedan como estaban.\n`;
+    }
+
+    // Aviso si hay pedido en curso que podría quedar desactualizado
+    if (state.currentOrder.items.length > 0) {
+      msg += `\n⚠️ Tenés un pedido en curso con ${state.currentOrder.items.length} item(s). ` +
+             `Los precios y disponibilidad pueden cambiar.\n` +
+             `(El pedido actual no se borra; revisalo después.)\n`;
+    }
+
+    msg += `\nEsto reemplaza el stock y los precios actuales.`;
+    if (!confirm(msg)) return false;
+  }
+
+  // Aplicar
+  state.stock = stockNormalizado;
+  state.stockUpdatedAt = data._exportedAt || new Date().toISOString();
+  state.prices = pricesNormalizadas;
+  state.pricesUpdatedAt = state.stockUpdatedAt;
+
+  // Si la lista activa quedó SIN precios después de importar, cambiar
+  // automáticamente a la primera lista que tenga algo.
+  const currentListEmpty = Object.keys(state.prices[state.activeList] || {}).length === 0;
+  if (currentListEmpty) {
+    for (const l of ['act', 'dist', 'vip']) {
+      if (Object.keys(state.prices[l] || {}).length > 0) {
+        state.activeList = l;
+        saveActiveList();
+        if (state.user.defaultList !== l) {
+          state.user.defaultList = l;
+          saveUser();
+        }
+        setTimeout(() => {
+          toast(`Lista activa: ${listDisplayName(l)} (la única con precios cargados)`, 'ok');
+        }, 1200);
+        break;
+      }
+    }
+  }
+
+  saveStock();
+  savePrices();
+
+  toast(`Datos actualizados — ${stockCount} productos, ${totalValidos} precios ✓`, 'ok');
+
+  // Refrescar UI
+  if (typeof renderStockTab === 'function') renderStockTab();
+  if (typeof renderHomeTab  === 'function') renderHomeTab();
+  if (typeof renderOrderTab === 'function') renderOrderTab();
+  return true;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// SUPABASE.JS — Sincronización OPCIONAL con la nube (StockVendedor)
+// ════════════════════════════════════════════════════════════════════
+//
+// 🆕 v6.5 — FASE 1: DESCARGAR CATÁLOGO  ·  FASE 2: SUBIR PEDIDOS (cola offline)
+//
+//   100% ADITIVO. Si no hay configuración, no hay conexión, o la librería
+//   no cargó (offline), la app funciona igual que siempre: el vendedor
+//   sigue importando el archivo .json que le pasa la central. La nube es
+//   solo un atajo para no tener que pasarse el archivo a mano.
+//
+//   El botón "Importar archivo" SIGUE INTACTO como fallback.
+//
+//   Acá bajamos la fila `catalog` que StockMerger publicó (objeto
+//   vendor_data_v2) y la aplicamos con applyVendorData() de import.js
+//   — exactamente el mismo camino que la importación por archivo.
+//
+// ── CONFIGURACIÓN (la pega el vendedor una sola vez en la pestaña Inicio) ──
+//   localStorage 'sb_config' = { url, anonKey, ns }
+//     url      → https://xxxxx.supabase.co  (la del proyecto de la central)
+//     anonKey  → la "anon public" key del proyecto
+//     ns       → "ID de tienda". DEBE coincidir con el que puso la central.
+//                Por defecto 'default'.
+//
+//   La central (StockMerger) crea la tabla. El vendedor solo necesita la
+//   URL, la anon key y el ID de tienda — se los pasa la central una vez.
+// ════════════════════════════════════════════════════════════════════
+
+let _sbClient = null;
+let _sbClientKey = '';
+
+function scGetConfig() {
+  try {
+    const raw = localStorage.getItem('sb_config');
+    if (!raw) return { url: '', anonKey: '', ns: 'default' };
+    const c = JSON.parse(raw);
+    return {
+      url:     (c.url || '').trim().replace(/\/+$/, ''),
+      anonKey: (c.anonKey || '').trim(),
+      ns:      (c.ns || 'default').trim() || 'default',
+    };
+  } catch (e) {
+    return { url: '', anonKey: '', ns: 'default' };
+  }
+}
+
+function scSaveConfig(cfg) {
+  const clean = {
+    url:     (cfg.url || '').trim().replace(/\/+$/, ''),
+    anonKey: (cfg.anonKey || '').trim(),
+    ns:      (cfg.ns || 'default').trim() || 'default',
+  };
+  _safeSetItem('sb_config', JSON.stringify(clean), 'la configuración de la nube');
+  _sbClient = null;
+  _sbClientKey = '';
+  return clean;
+}
+
+function scIsConfigured() {
+  const c = scGetConfig();
+  return !!(c.url && c.anonKey);
+}
+
+function scLibReady() {
+  return typeof window !== 'undefined'
+      && window.supabase
+      && typeof window.supabase.createClient === 'function';
+}
+
+function scClient() {
+  if (!scLibReady()) return null;
+  const c = scGetConfig();
+  if (!c.url || !c.anonKey) return null;
+
+  const key = c.url + '|' + c.anonKey;
+  if (_sbClient && _sbClientKey === key) return _sbClient;
+
+  try {
+    _sbClient = window.supabase.createClient(c.url, c.anonKey, {
+      auth: { persistSession: false },
+    });
+    _sbClientKey = key;
+    return _sbClient;
+  } catch (e) {
+    console.warn('No se pudo crear cliente Supabase:', e.message);
+    return null;
+  }
+}
+
+function scStatus(msg, type) {
+  const el = document.getElementById('sbStatus');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'sb-status' + (type ? ' sb-status-' + type : '');
+}
+
+function scSaveConfigFromUI() {
+  const url     = document.getElementById('sbUrl')?.value || '';
+  const anonKey = document.getElementById('sbKey')?.value || '';
+  const ns      = document.getElementById('sbNs')?.value  || 'default';
+  if (!url.trim() || !anonKey.trim()) {
+    scStatus('Faltan datos: pegá la URL y la anon key que te dio la central.', 'err');
+    return;
+  }
+  scSaveConfig({ url, anonKey, ns });
+  scStatus('Configuración guardada ✓', 'ok');
+  toast('Configuración de nube guardada ✓', 'ok');
+  if (typeof rtStart === 'function') setTimeout(rtStart, 300);
+}
+
+async function scTestConnection() {
+  if (!scLibReady()) {
+    scStatus('La librería de Supabase no cargó (¿sin internet al abrir la app?).', 'err');
+    return;
+  }
+  if (!scIsConfigured()) {
+    scStatus('Primero guardá la URL y la anon key.', 'err');
+    return;
+  }
+  const client = scClient();
+  if (!client) { scStatus('No se pudo crear el cliente.', 'err'); return; }
+
+  scStatus('Probando conexión…', '');
+  try {
+    const c = scGetConfig();
+    const { data, error } = await client
+      .from('catalog')
+      .select('updated_at')
+      .eq('id', c.ns)
+      .maybeSingle();
+    if (error) {
+      scStatus('Error: ' + (error.message || 'no se pudo consultar la nube.'), 'err');
+      return;
+    }
+    if (!data) {
+      scStatus(`Conexión OK ✓ pero la central todavía no publicó nada para la tienda "${c.ns}".`, 'ok');
+      return;
+    }
+    const fecha = data.updated_at
+      ? new Date(data.updated_at).toLocaleString('es-AR')
+      : 'desconocida';
+    scStatus(`Conexión OK ✓ — catálogo disponible (actualizado ${fecha}).`, 'ok');
+  } catch (e) {
+    scStatus('Error de red: ' + (e.message || 'sin conexión'), 'err');
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// DESCARGAR CATÁLOGO — baja la fila de la nube y la aplica con
+// applyVendorData() (mismo camino que importar el archivo .json).
+// ════════════════════════════════════════════════════════════════════
+async function pullCatalog(opts = {}) {
+  const auto = !!opts.auto; // disparado por Realtime: sin confirmaciones ni toasts ruidosos
+  if (!scLibReady()) {
+    if (!auto) {
+      toast('La nube no está disponible (la librería no cargó — ¿sin internet?). ' +
+            'Podés importar el archivo .json que te pase la central.', 'err');
+      scStatus('Librería de Supabase no disponible.', 'err');
+    }
+    return;
+  }
+  if (!scIsConfigured()) {
+    if (!auto) {
+      toast('Configurá primero la URL y la anon key (te las da la central).', 'err');
+      scStatus('Falta configurar la nube.', 'err');
+    }
+    return;
+  }
+
+  const client = scClient();
+  if (!client) { if (!auto) toast('No se pudo crear el cliente de la nube.', 'err'); return; }
+
+  const c = scGetConfig();
+  if (!auto) scStatus('Descargando de la nube…', '');
+  try {
+    const { data, error } = await client
+      .from('catalog')
+      .select('payload, updated_at')
+      .eq('id', c.ns)
+      .maybeSingle();
+
+    if (error) {
+      console.error('pullCatalog error:', error);
+      if (!auto) {
+        toast('Error al descargar: ' + (error.message || 'desconocido'), 'err');
+        scStatus('Error al descargar: ' + (error.message || 'desconocido'), 'err');
+      }
+      return;
+    }
+    if (!data || !data.payload) {
+      if (!auto) {
+        toast(`La central todavía no publicó datos para la tienda "${c.ns}".`, 'err');
+        scStatus(`Sin catálogo publicado para "${c.ns}".`, 'err');
+      }
+      return;
+    }
+
+    // En modo automático (Realtime), NO pisar un pedido en curso: solo avisar.
+    if (auto && state.currentOrder && state.currentOrder.items.length > 0) {
+      toast('La central actualizó el catálogo. Sincronizá cuando termines el pedido (☁⬇).', '');
+      scStatus('Hay un catálogo nuevo — sincronizá al terminar el pedido.', '');
+      return;
+    }
+
+    // Aplicar: por archivo/manual pide confirmación; por Realtime se aplica solo.
+    const ok = applyVendorData(data.payload, {
+      sourceLabel: auto ? 'la nube (auto)' : 'la nube',
+      askConfirm:  !auto,
+    });
+    if (ok) {
+      const fecha = data.updated_at
+        ? new Date(data.updated_at).toLocaleString('es-AR')
+        : new Date().toLocaleString('es-AR');
+      scStatus(`Sincronizado ✓ (catálogo del ${fecha}).`, 'ok');
+      if (auto) toast('Catálogo actualizado automáticamente ✓', 'ok');
+    } else if (!auto) {
+      scStatus('Descarga cancelada.', '');
+    }
+  } catch (e) {
+    console.error('pullCatalog exception:', e);
+    if (!auto) {
+      toast('Error de red al descargar: ' + (e.message || 'sin conexión'), 'err');
+      scStatus('Error de red: ' + (e.message || 'sin conexión'), 'err');
+    }
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// EMPUJAR PEDIDOS A LA NUBE (Fase 2) — con cola offline.
+//
+// Cuando el vendedor envía un pedido, además del Excel (que sigue siendo
+// el camino garantizado) intentamos subirlo a la tabla `orders`. Si no hay
+// internet o falla, el pedido se ENCOLA en localStorage y se reintenta solo
+// al volver la conexión / al abrir la app. Nunca se pierde un pedido: el
+// Excel ya quedó y la cola persiste.
+//
+// Estado de nube por pedido (guardado en el propio pedido en state.orders):
+//   o._cloud === 'sent'    → subido OK
+//   o._cloud === 'queued'  → en cola, pendiente de subir
+//   (sin _cloud)           → nunca se intentó (nube no configurada al enviar)
+//
+// Cola: localStorage 'sb_order_queue' = [ orderObj, ... ] (dedupe por id).
+// ════════════════════════════════════════════════════════════════════
+
+function _loadOrderQueue() {
+  try { return JSON.parse(localStorage.getItem('sb_order_queue') || '[]'); }
+  catch (e) { return []; }
+}
+function _saveOrderQueue(q) {
+  _safeSetItem('sb_order_queue', JSON.stringify(q), 'la cola de pedidos a subir');
+}
+function _enqueueOrder(order) {
+  const q = _loadOrderQueue();
+  if (!q.find(o => o.id === order.id)) q.push(order);
+  _saveOrderQueue(q);
+}
+function _dequeueOrder(orderId) {
+  _saveOrderQueue(_loadOrderQueue().filter(o => o.id !== orderId));
+}
+function _setOrderCloudStatus(orderId, status) {
+  const o = state.orders.find(x => x.id === orderId);
+  if (o) { o._cloud = status; saveOrders(); }
+}
+
+// Sube UN pedido. Devuelve true si el server lo aceptó.
+async function _pushOrderRaw(order) {
+  const client = scClient();
+  if (!client) return false;
+  const c = scGetConfig();
+  const { error } = await client.from('orders').insert({
+    ns:       c.ns,
+    order_id: order.id,
+    vendor:   order.vendor || '',
+    client:   order.client || '',
+    payload:  order,
+  });
+  if (error) {
+    console.warn('push order error:', error.message);
+    return false;
+  }
+  return true;
+}
+
+// Intenta subir un pedido recién enviado. Si falla, lo encola.
+// No molesta al vendedor si la nube no está configurada (camino Excel intacto).
+async function pushOrderSafe(order) {
+  if (!order || !order.id) return;
+  if (!scIsConfigured()) return;          // nube no usada — silencio total
+  if (!scLibReady()) {                    // configurada pero sin lib (offline)
+    _enqueueOrder(order);
+    _setOrderCloudStatus(order.id, 'queued');
+    return;
+  }
+  const ok = await _pushOrderRaw(order);
+  if (ok) {
+    _dequeueOrder(order.id);
+    _setOrderCloudStatus(order.id, 'sent');
+  } else {
+    _enqueueOrder(order);
+    _setOrderCloudStatus(order.id, 'queued');
+    toast('Sin conexión: el pedido quedó en cola y se subirá solo. (El Excel ya se generó.)', 'err');
+  }
+  if (typeof renderOrdersTab === 'function') renderOrdersTab();
+}
+
+// Reintenta subir todos los pedidos en cola. Silencioso salvo que suba algo.
+async function flushOrderQueue(opts = {}) {
+  if (!scIsConfigured() || !scLibReady()) return;
+  const q = _loadOrderQueue();
+  if (!q.length) return;
+
+  let subidos = 0;
+  for (const order of q) {
+    const ok = await _pushOrderRaw(order);
+    if (ok) {
+      _dequeueOrder(order.id);
+      _setOrderCloudStatus(order.id, 'sent');
+      subidos++;
+    }
+  }
+  if (subidos > 0) {
+    toast(`${subidos} pedido(s) en cola subidos a la nube ✓`, 'ok');
+    if (typeof renderOrdersTab === 'function') renderOrdersTab();
+  } else if (opts.notifyIfEmpty) {
+    toast('No se pudo subir la cola — seguís sin conexión.', 'err');
+  }
+}
+
+// Subida manual de un pedido del historial (botón ☁ en la tarjeta).
+async function pushOrderById(orderId) {
+  const order = state.orders.find(o => o.id === orderId);
+  if (!order) { toast('Pedido no encontrado', 'err'); return; }
+  if (!scIsConfigured()) {
+    toast('Configurá la nube en Inicio para poder subir pedidos.', 'err');
+    return;
+  }
+  if (!scLibReady()) {
+    _enqueueOrder(order);
+    _setOrderCloudStatus(order.id, 'queued');
+    toast('Sin conexión: quedó en cola, se subirá solo al volver internet.', 'err');
+    if (typeof renderOrdersTab === 'function') renderOrdersTab();
+    return;
+  }
+  const ok = await _pushOrderRaw(order);
+  if (ok) {
+    _dequeueOrder(order.id);
+    _setOrderCloudStatus(order.id, 'sent');
+    toast('Pedido subido a la nube ✓', 'ok');
+  } else {
+    _enqueueOrder(order);
+    _setOrderCloudStatus(order.id, 'queued');
+    toast('No se pudo subir (sin conexión). Quedó en cola.', 'err');
+  }
+  if (typeof renderOrdersTab === 'function') renderOrdersTab();
+}
+
+function scInitUI() {
+  const c = scGetConfig();
+  const u = document.getElementById('sbUrl');
+  const k = document.getElementById('sbKey');
+  const n = document.getElementById('sbNs');
+  if (u) u.value = c.url;
+  if (k) k.value = c.anonKey;
+  if (n) n.value = c.ns;
+
+  if (!scLibReady()) {
+    scStatus('Modo offline: la nube no cargó. La app funciona igual; importá el archivo.', '');
+  } else if (scIsConfigured()) {
+    scStatus('Nube configurada. Tocá "Sincronizar desde la nube" para traer lo último.', '');
+    // Al arrancar con conexión, intentar vaciar la cola de pedidos pendientes.
+    setTimeout(() => { flushOrderQueue(); }, 1500);
+  } else {
+    scStatus('Nube no configurada (opcional). Pedile a la central la URL y la key.', '');
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', scInitUI);
+} else {
+  scInitUI();
+}
+
+// ════════════════════════════════════════════════════════════════════
+// REALTIME.JS — StockVendedor — actualización en tiempo real (Supabase Realtime)
+// ════════════════════════════════════════════════════════════════════
+//
+// Abre un canal websocket que avisa al INSTANTE cuando la central publica
+// un catálogo nuevo, y dispara pullCatalog({auto:true}) — sin botón, sin
+// esperar. Es solo un DISPARADOR: el dato real lo baja pullCatalog por REST
+// (el payload del catálogo puede superar el límite de 256 KB de Realtime,
+// así que nunca dependemos del contenido del evento, solo de la señal).
+//
+// 100% aditivo y degradado seguro:
+//   • Si Realtime no está habilitado en la tabla, simplemente no llegan
+//     eventos y todo sigue andando con el botón "Sincronizar" + sondeo.
+//   • Si no hay internet, el websocket no conecta y la app funciona local.
+//
+// Para que funcione, en Supabase hay que habilitar Realtime en la tabla
+// `catalog` (SQL: alter publication supabase_realtime add table catalog;).
+// ════════════════════════════════════════════════════════════════════
+
+let _rtCatalogCh = null;
+let _rtCatalogDebounce = null;
+
+function rtStop() {
+  const client = (typeof scClient === 'function') ? scClient() : null;
+  if (_rtCatalogCh && client) {
+    try { client.removeChannel(_rtCatalogCh); } catch (e) {}
+  }
+  _rtCatalogCh = null;
+}
+
+function rtStart() {
+  if (!scLibReady() || !scIsConfigured()) return;
+  const client = scClient();
+  if (!client) return;
+  rtStop();
+  const c = scGetConfig();
+
+  _rtCatalogCh = client
+    .channel('rt-catalog-' + c.ns)
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'catalog', filter: 'id=eq.' + c.ns },
+      () => {
+        // Debounce: si llegan varios eventos juntos, una sola descarga.
+        clearTimeout(_rtCatalogDebounce);
+        _rtCatalogDebounce = setTimeout(() => {
+          if (typeof pullCatalog === 'function') pullCatalog({ auto: true });
+        }, 800);
+      })
+    .subscribe();
+}
+
+// Arrancar al cargar (si ya está configurado) y reintentar tras configurar.
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => setTimeout(rtStart, 2500));
+} else {
+  setTimeout(rtStart, 2500);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// TEMPLATE.JS — Plantilla Excel para clientes
+// ════════════════════════════════════════════════════════════════════
+//
+// 🆕 v6 — DISPONIBILIDAD UNIFICADA
+//   La columna "Disponible" de la plantilla muestra `s.qty` directamente
+//   (antes era `s.qtyA + s.qtyB`). Para el cliente NO hay cambio visual:
+//   siempre vio una sola cifra. Para el vendedor desaparecen los warnings
+//   "X de tienda + Y de camino" al importar la plantilla con cantidades.
+//
+// FLUJO:
+//   1. Vendedor genera plantilla → Excel con stock + precios + col vacía
+//   2. Vendedor manda Excel al cliente por WhatsApp/email
+//   3. Cliente abre Excel, completa columna CANTIDAD, guarda y devuelve
+//   4. Vendedor importa Excel completado → la app arma pedido automático
+//
+// La plantilla incluye un "código identificador" (en hoja oculta _meta)
+// para que la app pueda validar:
+//   - Qué lista es (act/dist/vip)
+//   - Cuándo se generó
+//   - Qué vendedor la armó
+//
+// 🔧 PARA EL PROGRAMADOR QUE AGREGUE BACKEND:
+//   Con backend, las plantillas podrían tener un código único que
+//   apunte a un registro en el servidor. Eso permitiría detectar:
+//   - Plantillas viejas con precios cambiados
+//   - Plantillas con stock ya vendido
+//   - Trazabilidad de qué cliente recibió qué plantilla
+// ════════════════════════════════════════════════════════════════════
+
+// Código identificador que va en la hoja oculta de la plantilla.
+// La lista que va en el meta determina qué precios usó el vendedor; al
+// importar el Excel rellenado de vuelta, se compara contra la lista del
+// borrador. Si la central cambia la asignación del vendedor, no afecta
+// la plantilla — esta queda atada a la lista del momento de generación.
+function buildTemplateMeta(client, list) {
+  return {
+    app:        'StockVendedor',
+    version:    1,
+    list:       list,
+    vendor:     state.user.name,
+    vendorCode: state.user.code,
+    client:     client || '',
+    date:       new Date().toISOString().slice(0, 10),
+  };
+}
+
+// ── GENERAR PLANTILLA ──
+// Entry point: valida pre-requisitos y abre el overlay para que el
+// vendedor escriba el nombre del cliente y elija la lista de precios.
+// La generación real se hace en _doGenerateTemplate() cuando confirma.
+function generateClientTemplate() {
+  if (!state.user.name || !state.user.code) {
+    toast('Configurá tu nombre y código primero', 'err'); return;
+  }
+  if (!state.stock.length) {
+    toast('No hay stock cargado', 'err'); return;
+  }
+  // ¿Hay precios en al menos una de las tres listas?
+  const hasAnyPrices = Object.keys(state.prices.act  || {}).length > 0
+                    || Object.keys(state.prices.dist || {}).length > 0
+                    || Object.keys(state.prices.vip  || {}).length > 0;
+  if (!hasAnyPrices) {
+    toast('No hay precios cargados', 'err'); return;
+  }
+  openClientNameOverlay();
+}
+
+// Overlay para pedir el nombre del cliente y la lista (reemplaza al prompt()).
+// El chip de lista arranca preseleccionado en state.activeList — la lista
+// con la que el vendedor está trabajando ahora mismo.
+function openClientNameOverlay() {
+  const input = document.getElementById('clientNameInput');
+  if (input) input.value = '';
+  // Preseleccionar la lista activa en los chips del modal
+  document.querySelectorAll('#clientNameOverlay .tpl-list-chip').forEach(c => {
+    c.classList.toggle('active', c.dataset.list === state.activeList);
+  });
+  document.getElementById('clientNameOverlay').classList.add('visible');
+  setTimeout(() => input && input.focus(), 100);
+}
+function closeClientNameOverlay() {
+  document.getElementById('clientNameOverlay').classList.remove('visible');
+}
+
+// Click en uno de los chips de lista dentro del modal de plantilla
+function setTemplateList(list, el) {
+  document.querySelectorAll('#clientNameOverlay .tpl-list-chip').forEach(c => c.classList.remove('active'));
+  if (el) el.classList.add('active');
+}
+
+function confirmClientName() {
+  const cliente = (document.getElementById('clientNameInput').value || '').trim();
+  if (!cliente) {
+    toast('Falta el nombre del cliente', 'err');
+    return;
+  }
+  // Leer la lista elegida en los chips
+  const activeChip = document.querySelector('#clientNameOverlay .tpl-list-chip.active');
+  const list = activeChip?.dataset.list || state.activeList || 'act';
+
+  closeClientNameOverlay();
+  setTimeout(() => _doGenerateTemplate(cliente, list), 50);
+}
+
+// Generación real de la plantilla (se invoca con cliente + lista ya validados)
+function _doGenerateTemplate(cliente, list) {
+  try {
+    const listPrices = state.prices[list] || {};
+
+    // Solo productos con stock disponible Y con precio en la lista elegida
+    const items = state.stock
+      .filter(s => (s.qty || 0) > 0)
+      .filter(s => listPrices[s._key])
+      .map(s => ({
+        marca:        s.marca || '',
+        rubro:        s.rubro || '',
+        product:      s.product,
+        disponible:   s.qty || 0,
+        price:        listPrices[s._key].price,
+        _key:         s._key,
+      }));
+
+    if (!items.length) {
+      toast(`No hay productos disponibles con precio en ${listDisplayName(list)}`, 'err');
+      return;
+    }
+
+    // Ordenar por RUBRO, luego marca, luego producto
+    items.sort((a, b) => {
+      const r = (a.rubro || 'zzz').localeCompare(b.rubro || 'zzz', 'es');
+      if (r !== 0) return r;
+      const m = (a.marca || 'zzz').localeCompare(b.marca || 'zzz', 'es');
+      if (m !== 0) return m;
+      return a.product.localeCompare(b.product, 'es');
+    });
+
+    // Construir filas
+    const listName = listDisplayName(list);
+    const fecha = new Date().toLocaleDateString('es-AR');
+
+    const meta = buildTemplateMeta(cliente, list);
+    const metaStr = JSON.stringify(meta);
+
+    const rows = [
+      // Fila 1: título
+      [`PLANTILLA DE PEDIDO — Lista ${listName} — ${fecha}`],
+      // Fila 2: instrucciones
+      ['Solo completá la columna "CANTIDAD". El resto NO modificar.'],
+      // Fila 3: vacía
+      [],
+      // Fila 4: cliente prellenado
+      ['Cliente:', cliente],
+      // Fila 5: vendedor con código
+      ['Vendedor:', `${state.user.name} (${state.user.code})`],
+      // Fila 6: vacía
+      [],
+      // Fila 7: cabecera de columnas
+      ['#', 'Marca', 'Rubro', 'Producto', 'Disponible', 'Precio USD', 'CANTIDAD', 'Subtotal'],
+    ];
+
+    // Filas de productos (a partir de fila 8)
+    // Fórmula del subtotal: PrecioUSD (col F, idx 5) * CANTIDAD (col G, idx 6)
+    items.forEach((it, i) => {
+      const rowNum = 8 + i;
+      rows.push([
+        i + 1,
+        it.marca,
+        it.rubro,
+        it.product,
+        it.disponible,
+        it.price,
+        '',
+        { f: `IF(G${rowNum}="",0,F${rowNum}*G${rowNum})` },
+      ]);
+    });
+
+    // Fila final con TOTAL — suma de la columna Subtotal (col H, idx 7)
+    const totalRow = 8 + items.length;
+    rows.push([]);
+    rows.push(['', '', '', '', '', 'TOTAL', '', { f: `SUM(H8:H${totalRow - 1})` }]);
+
+    // Crear workbook
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+
+    // Anchos de columna
+    ws['!cols'] = [
+      { wch: 4 },   // #
+      { wch: 12 },  // Marca
+      { wch: 18 },  // Rubro
+      { wch: 36 },  // Producto
+      { wch: 11 },  // Disponible
+      { wch: 11 },  // Precio
+      { wch: 14 },  // CANTIDAD
+      { wch: 12 },  // Subtotal
+    ];
+
+    // Fusionar celdas de título (filas 1 y 2) — 8 columnas (0..7)
+    ws['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 7 } },
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Pedido');
+
+    // Crear una hoja oculta con el código identificador
+    // (no se ve para el cliente pero la app puede leerla al importar)
+    const wsMeta = XLSX.utils.aoa_to_sheet([
+      ['StockVendedor — datos técnicos. NO MODIFICAR.'],
+      ['meta', metaStr],
+    ]);
+    wsMeta['!cols'] = [{ wch: 8 }, { wch: 60 }];
+    XLSX.utils.book_append_sheet(wb, wsMeta, '_meta');
+    // Marcar la hoja como oculta
+    wb.Workbook = wb.Workbook || { Sheets: [] };
+    wb.Workbook.Sheets = wb.SheetNames.map(name => ({
+      name,
+      Hidden: name === '_meta' ? 1 : 0,
+    }));
+
+    // Filename: Plantilla_VIP_JUL_Cliente_2026-05-18.xlsx
+    const safeClient = cliente.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30);
+    const fileName = `Plantilla_${listName}_${state.user.code}_${safeClient}_${meta.date}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+
+    toast(`Plantilla para "${cliente}" generada — ${items.length} productos ✓`, 'ok');
+  } catch (err) {
+    console.error('Error al generar plantilla:', err);
+    toast('Error: ' + (err.message || 'desconocido'), 'err');
+  }
+}
+
+// ── IMPORTAR PLANTILLA COMPLETADA ──
+function importClientTemplate(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = '';
+
+  const reader = new FileReader();
+  reader.onload = evt => {
+    try {
+      const wb = XLSX.read(evt.target.result, { type: 'array' });
+
+      // Leer meta de la hoja oculta "_meta"
+      let meta;
+      if (wb.Sheets['_meta']) {
+        const metaRows = XLSX.utils.sheet_to_json(wb.Sheets['_meta'], { header: 1, defval: '' });
+        // metaRows[1] = ['meta', '{"app":"StockVendedor",...}']
+        const metaStr = String(metaRows[1]?.[1] || '');
+        try { meta = JSON.parse(metaStr); }
+        catch (e) { meta = null; }
+      }
+
+      if (!meta || meta.app !== 'StockVendedor') {
+        toast('Este Excel no es una plantilla válida de StockVendedor.', 'err');
+        return;
+      }
+      const templateList = (meta.list === 'act' || meta.list === 'dist' || meta.list === 'vip')
+        ? meta.list : null;
+      if (!templateList) {
+        toast('La plantilla no tiene una lista válida en su metadata.', 'err');
+        return;
+      }
+      // Si la lista de la plantilla difiere de la activa, avisamos antes
+      // (para que el vendedor confirme), y al cargar el pedido cambiamos
+      // la lista activa a la de la plantilla. Esto evita que los items
+      // queden marcados como "sin precio" porque la lista activa no
+      // tenía ese precio (cuando sí lo tiene la lista de la plantilla).
+      if (templateList !== state.activeList) {
+        const orig = listDisplayName(templateList);
+        const own  = listDisplayName(state.activeList);
+        if (!confirm(
+          `Esta plantilla fue generada con ${orig}, pero tu lista activa es ${own}.\n\n` +
+          `Si continuás, voy a cambiar la lista activa a ${orig} para que los precios coincidan.\n\n` +
+          `¿Continuar?`
+        )) return;
+      }
+
+      // Leer la hoja principal "Pedido" (o la primera que no sea _meta)
+      const sheetName = wb.SheetNames.find(n => n !== '_meta') || wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+      // Leer nombre del cliente (fila 4 = índice 3, columna B = índice 1)
+      const cliente = String(rows[3]?.[1] || '').trim();
+      // Si quedó el placeholder, ignorarlo
+      const clienteFinal = cliente && !cliente.includes('escribir nombre') ? cliente : (meta.client || '');
+
+      // Productos a partir de fila 8 (índice 7)
+      // Cabecera (índice 6) tiene 8 columnas:
+      //   0:#  1:Marca  2:Rubro  3:Producto  4:Disponible
+      //   5:Precio USD  6:CANTIDAD  7:Subtotal
+      const items = [];
+      const warnings = [];
+      let priceChanges = 0;
+
+      for (let i = 7; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || row.length < 7) continue;
+
+        const product = String(row[3] || '').trim();
+        const cantStr = row[6];
+        if (!product) continue;
+        if (cantStr === '' || cantStr === null || cantStr === undefined) continue;
+
+        const cant = parseInt(cantStr);
+        if (isNaN(cant) || cant <= 0) continue;
+
+        // Buscar en el stock por nombre normalizado
+        const key = normalize(product);
+        const stockItem = state.stock.find(s => s._key === key);
+        if (!stockItem) {
+          warnings.push(`"${product}" — no está en el stock actual`);
+          continue;
+        }
+
+        // Verificar disponibilidad contra el stock actual.
+        // Una sola comparación, sin distinguir tienda/camino.
+        const disponible = stockItem.qty || 0;
+        if (cant > disponible) {
+          warnings.push(`"${product}" — pidió ${cant}, disponible ${disponible}`);
+        }
+
+        // Buscar precio actual EN LA LISTA DE LA PLANTILLA
+        const priceCurrent = getProductPrice(key, templateList);
+        if (priceCurrent === null) {
+          warnings.push(`"${product}" — sin precio en ${listDisplayName(templateList)}`);
+          continue;
+        }
+
+        // Comparar precio plantilla vs precio actual
+        const priceTemplate = parseFloat(row[5]) || 0;
+        if (Math.abs(priceTemplate - priceCurrent) > 0.001) {
+          priceChanges++;
+        }
+
+        items.push({
+          key,
+          label: stockItem.product,
+          marca: stockItem.marca || '',
+          rubro: stockItem.rubro || '',
+          qty: cant,
+          price: priceCurrent,
+          subtotal: cant * priceCurrent,
+        });
+      }
+
+      if (!items.length) {
+        toast('La plantilla está vacía o sin cantidades cargadas', 'err');
+        return;
+      }
+
+      // Mostrar resumen y confirmar
+      const total = items.reduce((acc, it) => acc + it.subtotal, 0);
+      let msg = `Plantilla del ${meta.date} — vendedor: ${meta.vendor}\n\n`;
+      msg += `• ${items.length} productos\n`;
+      msg += `• Total: ${fmtMoney(total)}\n`;
+      msg += `• Cliente: ${clienteFinal || '(sin nombre)'}\n`;
+
+      if (priceChanges > 0) {
+        msg += `\n⚠️ ${priceChanges} precio${priceChanges > 1 ? 's han' : ' ha'} cambiado desde que se generó la plantilla.\n`;
+        msg += `Se aplicarán los precios ACTUALES.\n`;
+      }
+      if (warnings.length > 0) {
+        msg += `\n⚠️ ${warnings.length} advertencias:\n`;
+        msg += warnings.slice(0, 5).map(w => `  • ${w}`).join('\n');
+        if (warnings.length > 5) msg += `\n  ... y ${warnings.length - 5} más`;
+      }
+
+      msg += `\n\n¿Cargar este pedido?`;
+
+      if (!confirm(msg)) return;
+
+      // Si ya hay un pedido en curso, preguntar
+      if (state.currentOrder.items.length > 0) {
+        if (!confirm('Ya hay un pedido en curso. ¿Reemplazarlo con este?')) return;
+        clearCurrentOrder();
+      }
+
+      // Cargar al pedido actual
+      state.currentOrder.client = clienteFinal;
+      state.currentOrder.items = items;
+      state.currentOrder.createdAt = new Date().toISOString();
+      saveCurrentOrder();
+
+      // Asegurar que la lista activa coincida con la de la plantilla
+      // (ya lo confirmó el vendedor en el alert de arriba)
+      if (state.activeList !== templateList) {
+        state.activeList = templateList;
+        saveActiveList();
+        if (state.user.defaultList !== templateList) {
+          state.user.defaultList = templateList;
+          saveUser();
+        }
+      }
+
+      toast(`Pedido cargado — ${items.length} productos en ${listDisplayName(templateList)} ✓`, 'ok');
+
+      // Ir a la pestaña Pedido
+      switchTab('order');
+      updateOrderBadge();
+    } catch (err) {
+      console.error('Error al importar plantilla:', err);
+      toast('Error al leer plantilla: ' + (err.message || 'archivo inválido'), 'err');
+    }
+  };
+  reader.onerror = () => toast('No se pudo leer el archivo', 'err');
+  reader.readAsArrayBuffer(file);
+}
+
+// ── EXPORTAR PEDIDO COMPLETADO COMO EXCEL PARA LA CENTRAL ──
+// El vendedor termina de armar el pedido y manda este Excel a la central.
+// Tiene el mismo formato que la plantilla pero con cantidades ya cargadas.
+function exportOrderAsExcel(order) {
+  try {
+    if (!order || !order.items?.length) {
+      toast('Pedido vacío', 'err'); return;
+    }
+
+    const listName = listDisplayName(order.list);
+
+    const meta = {
+      app:      'StockVendedor',
+      version:  1,
+      type:     'order',           // distingue de 'template'
+      orderId:  order.id,
+      list:     order.list,
+      vendor:   order.vendor,
+      client:   order.client,
+      date:     new Date(order.sentAt || order.createdAt).toISOString().slice(0, 10),
+      total:    order.total,
+    };
+    const metaStr = JSON.stringify(meta);
+
+    // Ordenar items por rubro/marca/producto
+    const items = [...order.items].sort((a, b) => {
+      const r = (a.rubro || 'zzz').localeCompare(b.rubro || 'zzz', 'es');
+      if (r !== 0) return r;
+      const m = (a.marca || 'zzz').localeCompare(b.marca || 'zzz', 'es');
+      if (m !== 0) return m;
+      return a.label.localeCompare(b.label, 'es');
+    });
+
+    const fecha = new Date(order.sentAt || order.createdAt).toLocaleDateString('es-AR');
+
+    const rows = [
+      [`PEDIDO #${order.id} — Lista ${listName} — ${fecha}`],
+      [`Vendedor: ${order.vendor}     Cliente: ${order.client}`],
+      [],
+      ['#', 'Marca', 'Rubro', 'Producto', 'Precio USD', 'CANTIDAD', 'Subtotal'],
+    ];
+
+    items.forEach((it, i) => {
+      rows.push([
+        i + 1,
+        it.marca || '',
+        it.rubro || '',
+        it.label,
+        it.price,
+        it.qty,
+        it.subtotal,
+      ]);
+    });
+
+    rows.push([]);
+    rows.push(['', '', '', '', '', 'TOTAL', order.total]);
+
+    if (order.notes) {
+      rows.push([]);
+      rows.push(['Notas:', order.notes]);
+    }
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+
+    ws['!cols'] = [
+      { wch: 4 },
+      { wch: 12 },
+      { wch: 18 },
+      { wch: 36 },
+      { wch: 11 },
+      { wch: 10 },
+      { wch: 12 },
+    ];
+
+    ws['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 6 } },
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Pedido');
+
+    // Hoja oculta con meta
+    const wsMeta = XLSX.utils.aoa_to_sheet([
+      ['StockVendedor — datos técnicos. NO MODIFICAR.'],
+      ['meta', metaStr],
+    ]);
+    wsMeta['!cols'] = [{ wch: 8 }, { wch: 60 }];
+    XLSX.utils.book_append_sheet(wb, wsMeta, '_meta');
+    wb.Workbook = wb.Workbook || { Sheets: [] };
+    wb.Workbook.Sheets = wb.SheetNames.map(name => ({
+      name,
+      Hidden: name === '_meta' ? 1 : 0,
+    }));
+
+    const vendorCode = state.user.code || '';
+    const fileName = `Pedido_${vendorCode}_${order.id}_${(order.client || 'cliente').replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+
+    toast('Pedido exportado en Excel ✓', 'ok');
+  } catch (err) {
+    console.error('Error al exportar pedido en Excel:', err);
+    toast('Error: ' + (err.message || 'desconocido'), 'err');
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// ORDERS.JS — Armado y gestión de pedidos
+// ════════════════════════════════════════════════════════════════════
+//
+// 🆕 v6 — VALIDACIÓN SIMPLIFICADA
+//   Las validaciones de stock ahora usan un único campo `qty`. Se
+//   eliminó la distinción tienda/camino que confundía al vendedor
+//   y ya no aplica en el modelo unificado.
+//
+// FLUJO:
+//   1. Vendedor agrega productos a currentOrder
+//   2. Vendedor confirma → pedido pasa a 'sent' en historial
+//   3. Vendedor exporta el pedido como Excel para mandarlo a central
+//
+// 🔧 PARA EL PROGRAMADOR QUE AGREGUE BACKEND:
+//   En lugar de exportar Excel/JSON, sendOrder() enviaría el pedido al
+//   servidor y la central lo recibiría en su panel automáticamente.
+// ════════════════════════════════════════════════════════════════════
+
+// Buscar precio de un producto en una lista específica.
+// Si no se pasa lista, usa la activa (state.activeList).
+// Devuelve null si el producto no tiene precio en esa lista.
+function getProductPrice(key, list) {
+  list = list || state.activeList || 'act';
+  const listMap = state.prices[list];
+  if (!listMap) return null;
+  const p = listMap[key];
+  return p ? p.price : null;
+}
+
+// ¿El producto tiene precio en AL MENOS UNA lista?
+// Se usa para decidir si mostrar el botón "+ Pedido" en la pestaña Stock
+// y si incluir el producto en los resultados del buscador.
+function productHasAnyPrice(key) {
+  return (state.prices.act?.[key]   != null)
+      || (state.prices.dist?.[key]  != null)
+      || (state.prices.vip?.[key]   != null);
+}
+
+// Nombre legible de una lista
+function listDisplayName(list) {
+  return list === 'act'  ? 'Lista 7'
+       : list === 'dist' ? 'Distribuidor'
+       : list === 'vip'  ? 'VIP'
+       : '—';
+}
+
+// Cambia la lista activa. Si hay items en el pedido en curso, pide
+// confirmación y recalcula precios.
+//
+// Lógica de recalculo:
+//   - Items con precio en la lista nueva → se actualiza price y subtotal.
+//   - Items SIN precio en la lista nueva → se marcan con _noPrice=true,
+//     price=0, subtotal=0. El render los muestra con badge rojo.
+//   - Si el usuario después vuelve a una lista donde sí tienen precio,
+//     el flag _noPrice se quita y los precios se restauran.
+function setActiveList(newList) {
+  if (newList !== 'act' && newList !== 'dist' && newList !== 'vip') return;
+  if (newList === state.activeList) return; // nada que hacer
+
+  const items = state.currentOrder?.items || [];
+  if (items.length > 0) {
+    const newName = listDisplayName(newList);
+    const oldName = listDisplayName(state.activeList);
+    if (!confirm(
+      `Cambiar de ${oldName} a ${newName} va a recalcular los precios ` +
+      `de ${items.length} item${items.length !== 1 ? 's' : ''} del pedido.\n\n` +
+      `¿Continuar?`
+    )) {
+      // Cancelado — re-renderizar para que los chips vuelvan a reflejar
+      // el state actual (el chip ya había cambiado visualmente al tocarse)
+      if (typeof renderOrderTab === 'function') renderOrderTab();
+      if (typeof renderStockTab === 'function') renderStockTab();
+      return;
+    }
+  }
+
+  state.activeList = newList;
+  saveActiveList();
+
+  // Persistir como nueva lista por defecto del usuario también — la
+  // próxima vez que abra la app o arme un pedido nuevo, va a arrancar
+  // en esta lista.
+  if (state.user.defaultList !== newList) {
+    state.user.defaultList = newList;
+    saveUser();
+  }
+
+  // Recalcular precios del pedido en curso (si hay items)
+  if (items.length > 0) {
+    let sinPrecio = 0;
+    items.forEach(it => {
+      const p = getProductPrice(it.key, newList);
+      if (p === null) {
+        it._noPrice = true;
+        it.price = 0;
+        it.subtotal = 0;
+        sinPrecio++;
+      } else {
+        delete it._noPrice;
+        it.price = p;
+        it.subtotal = (it.qty || 0) * p;
+      }
+    });
+    saveCurrentOrder();
+    if (sinPrecio > 0) {
+      setTimeout(() => {
+        toast(`⚠️ ${sinPrecio} item(s) sin precio en ${listDisplayName(newList)}`, 'err');
+      }, 200);
+    }
+  }
+
+  // Refrescar todo lo que dependa de la lista activa
+  if (typeof renderOrderTab === 'function') renderOrderTab();
+  if (typeof renderStockTab === 'function') renderStockTab();
+}
+
+// Agregar producto al pedido actual
+function addToOrder(key, qty) {
+  qty = parseInt(qty);
+  if (!qty || qty < 1) {
+    toast('Cantidad inválida', 'err');
+    return false;
+  }
+
+  const stockItem = state.stock.find(s => s._key === key);
+  if (!stockItem) {
+    toast('Producto no encontrado', 'err');
+    return false;
+  }
+
+  const price = getProductPrice(key);
+  if (price === null) {
+    toast(`Este producto no tiene precio en ${listDisplayName(state.activeList)}`, 'err');
+    return false;
+  }
+
+  const disponible = stockItem.qty || 0;
+
+  // Si el producto YA está en el pedido, validamos contra la cantidad
+  // ACUMULADA (lo que ya tenía + lo que se quiere agregar). El error
+  // a evitar es validar solo contra `qty` sin contar lo previo, lo que
+  // permitiría superar el stock real agregando varias veces.
+  const existing = state.currentOrder.items.find(i => i.key === key);
+  const previaEnPedido = existing ? existing.qty : 0;
+  const qtyAcumulada   = previaEnPedido + qty;
+
+  if (qtyAcumulada > disponible) {
+    const ctx = previaEnPedido > 0
+      ? `Ya tenías ${previaEnPedido} en el pedido y querés agregar ${qty} más (total ${qtyAcumulada}).\n`
+      : '';
+    if (!confirm(
+      `${ctx}Solo hay ${disponible} unidades disponibles.\n¿Continuar igual?`
+    )) {
+      return false;
+    }
+  }
+
+  // Si ya está en el pedido, sumar cantidad
+  if (existing) {
+    existing.qty += qty;
+    existing.subtotal = existing.qty * existing.price;
+  } else {
+    state.currentOrder.items.push({
+      key,
+      label: stockItem.product,
+      // marca/rubro: el stock está garantizado normalizado por el loader o
+      // por importVendorData, así que estos campos siempre están seteados
+      // (vacío como string si el origen los tenía vacíos).
+      marca: stockItem.marca || '',
+      rubro: stockItem.rubro || '',
+      qty,
+      price,
+      subtotal: qty * price,
+    });
+  }
+
+  if (!state.currentOrder.createdAt) {
+    state.currentOrder.createdAt = new Date().toISOString();
+  }
+
+  saveCurrentOrder();
+  return true;
+}
+
+// Modificar cantidad de un item del pedido
+function updateOrderItem(key, newQty) {
+  const item = state.currentOrder.items.find(i => i.key === key);
+  if (!item) return;
+
+  // Distinguir tres casos al parsear:
+  //   - "abc" → NaN → input inválido, NO borrar (el usuario probablemente
+  //     se equivocó tipeando una letra). Restauramos el valor anterior.
+  //   - 0 / "" / null → intención clara de borrar (input vaciado).
+  //   - número positivo → actualizar normal.
+  const rawTrim = (typeof newQty === 'string') ? newQty.trim() : newQty;
+  const isEmptyIntent = (rawTrim === '' || rawTrim === null || rawTrim === undefined);
+  const parsed = parseInt(rawTrim);
+  if (isEmptyIntent || parsed === 0) {
+    // Borrar pidiendo confirmación si la cantidad anterior era mayor a 1
+    // (para 1 puede ser un click de más en el "−")
+    if (item.qty > 1) {
+      if (!confirm(`¿Quitar "${item.label}" del pedido?`)) {
+        // Restaurar el valor en el input
+        renderOrderTab();
+        return;
+      }
+    }
+    removeFromOrder(key);
+    return;
+  }
+  if (isNaN(parsed) || parsed < 0) {
+    // Basura tipeada — avisar y NO modificar el item
+    toast('Cantidad inválida — debe ser un número entero positivo', 'err');
+    renderOrderTab(); // re-renderizar para que el input vuelva al valor real
+    return;
+  }
+  const newQtyNum = parsed;
+
+  // Validar contra stock disponible (igual que en addToOrder).
+  // Si supera, pedir confirmación al usuario antes de aplicar.
+  const stockItem = state.stock.find(s => s._key === key);
+  if (stockItem) {
+    const disponible = stockItem.qty || 0;
+    if (newQtyNum > disponible) {
+      if (!confirm(
+        `Solo hay ${disponible} unidades disponibles.\n` +
+        `¿Mantener la cantidad en ${newQtyNum}?`
+      )) {
+        renderOrderTab();
+        return;
+      }
+    }
+  }
+
+  item.qty = newQtyNum;
+  item.subtotal = item.qty * item.price;
+  saveCurrentOrder();
+}
+
+// Quitar producto del pedido
+function removeFromOrder(key) {
+  state.currentOrder.items = state.currentOrder.items.filter(i => i.key !== key);
+  saveCurrentOrder();
+}
+
+// Limpiar pedido actual
+function clearCurrentOrder() {
+  state.currentOrder = {
+    client: '',
+    items: [],
+    notes: '',
+    createdAt: '',
+    _draftId: null,   // si venía de un borrador, se desvincula al limpiar
+  };
+  saveCurrentOrder();
+}
+
+// Calcular total del pedido
+function orderTotal(items) {
+  return items.reduce((acc, it) => acc + (it.subtotal || 0), 0);
+}
+
+// Confirmar pedido → mover a historial como 'sent'
+function sendOrder() {
+  if (!state.currentOrder.items.length) {
+    toast('El pedido está vacío', 'err');
+    return null;
+  }
+  if (!state.currentOrder.client.trim()) {
+    toast('Falta el nombre del cliente', 'err');
+    return null;
+  }
+  if (!state.user.name) {
+    toast('Falta configurar tu nombre de usuario', 'err');
+    return null;
+  }
+
+  const now = new Date().toISOString();
+
+  // Validación: no permitir enviar pedidos con items sin precio en la
+  // lista activa. Esto pasa cuando el vendedor cambió de lista y algún
+  // producto no tenía precio en la nueva. Forzamos a resolverlo antes.
+  const sinPrecio = state.currentOrder.items.filter(it => it._noPrice);
+  if (sinPrecio.length > 0) {
+    toast(
+      `Hay ${sinPrecio.length} item(s) sin precio en ${listDisplayName(state.activeList)}. ` +
+      `Cambiá de lista o quitalos del pedido antes de enviar.`,
+      'err'
+    );
+    return null;
+  }
+
+  // Si este pedido viene de un borrador previo, reutilizamos su id y
+  // REEMPLAZAMOS la entrada del historial. Si es nuevo, creamos un id.
+  const draftId = state.currentOrder._draftId || null;
+  const order = {
+    id: draftId || generateOrderId(),
+    vendor: state.user.name,
+    vendorCode: state.user.code,
+    list: state.activeList,
+    client: state.currentOrder.client.trim(),
+    items: state.currentOrder.items.map(i => ({ ...i })),
+    notes: state.currentOrder.notes || '',
+    total: orderTotal(state.currentOrder.items),
+    status: 'sent',
+    createdAt: state.currentOrder.createdAt || now,
+    sentAt: now,
+  };
+
+  if (draftId) {
+    // Buscar el borrador en el historial y reemplazarlo por la versión enviada.
+    // Si no se encuentra (caso raro: el borrador fue eliminado mientras se editaba),
+    // simplemente lo agregamos al historial como nuevo.
+    const idx = state.orders.findIndex(o => o.id === draftId);
+    if (idx >= 0) {
+      state.orders.splice(idx, 1, order);
+    } else {
+      state.orders.unshift(order);
+    }
+  } else {
+    state.orders.unshift(order); // más reciente primero
+  }
+  saveOrders();
+  clearCurrentOrder();
+
+  return order;
+}
+
+// Exportar pedido como JSON para enviar a central
+function exportOrderJSON(order) {
+  try {
+    const payload = {
+      _app: 'StockMerger',
+      _type: 'vendor_order',
+      _version: 1,
+      _exportedAt: new Date().toISOString(),
+      order,
+    };
+    const json = JSON.stringify(payload, null, 2);
+    const blob = new Blob([json], { type: 'application/json;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const vendorCode = state.user.code || '';
+    a.download = `Pedido_${vendorCode}_${order.id}_${order.client.replace(/[^a-zA-Z0-9]/g, '_')}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+    toast('Pedido descargado — mandalo a central ✓', 'ok');
+  } catch (err) {
+    console.error(err);
+    toast('Error al exportar pedido', 'err');
+  }
+}
+
+// Eliminar pedido del historial
+function deleteOrder(id) {
+  const o = state.orders.find(o => o.id === id);
+  if (!o) return;
+  // Para borradores usamos deleteDraft que tiene su propio confirm con info
+  if (o.status === 'draft') {
+    deleteDraft(id);
+    return;
+  }
+  if (!confirm('¿Eliminar este pedido del historial?')) return;
+  state.orders = state.orders.filter(o => o.id !== id);
+  saveOrders();
+  if (typeof renderOrdersTab === 'function') renderOrdersTab();
+  toast('Pedido eliminado', 'ok');
+}
+
+// ════════════════════════════════════════════════════════════════════
+// BORRADORES (v6.2)
+// ════════════════════════════════════════════════════════════════════
+//
+// Los borradores se guardan en state.orders con status: 'draft', junto
+// con los pedidos enviados. La pestaña "Mis pedidos" los muestra con
+// chips de filtro (Todos / Borradores / Enviados).
+//
+// FLUJO:
+//   - Al tocar "💾 Guardar borrador", currentOrder se serializa como
+//     entrada en state.orders con status='draft'. Si tenía _draftId
+//     (porque vino de un borrador previo), reemplaza esa entrada.
+//   - Al tocar "Continuar" en un borrador desde Mis pedidos, sus datos
+//     se cargan al currentOrder con _draftId apuntando al borrador.
+//     El borrador SIGUE en el historial (redundancia voluntaria por
+//     seguridad — ver discusión de plan).
+//   - Al enviar el pedido (sendOrder), si tenía _draftId, la entrada
+//     del historial se reemplaza por la versión enviada (mismo id).
+//
+// AVISO DE 50 BORRADORES:
+//   Cuando el vendedor guarda y el total queda en >=50, mostramos un
+//   toast suave una sola vez por sesión.
+// ════════════════════════════════════════════════════════════════════
+
+let _draftLimitWarned = false; // se resetea al recargar la app
+
+// Devuelve true si guardó OK, false si no había nada que guardar.
+function saveDraft() {
+  const co = state.currentOrder;
+  const hasContent = (co.items && co.items.length > 0)
+                  || (co.client && co.client.trim())
+                  || (co.notes  && co.notes.trim());
+  if (!hasContent) {
+    toast('No hay nada que guardar — el pedido está vacío', 'err');
+    return false;
+  }
+  if (!state.user.name) {
+    toast('Falta configurar tu nombre de usuario', 'err');
+    return false;
+  }
+
+  const now = new Date().toISOString();
+  const draftId = co._draftId || generateOrderId();
+
+  const draft = {
+    id:        draftId,
+    vendor:    state.user.name,
+    vendorCode: state.user.code,
+    list:      state.activeList,
+    client:    (co.client || '').trim(),
+    items:     co.items.map(i => ({ ...i })),
+    notes:     co.notes || '',
+    total:     orderTotal(co.items),
+    status:    'draft',
+    createdAt: co.createdAt || now,
+    updatedAt: now,
+    sentAt:    null,
+  };
+
+  // Reemplazar si ya existía, sino agregar al inicio
+  const idx = state.orders.findIndex(o => o.id === draftId);
+  if (idx >= 0) {
+    state.orders.splice(idx, 1, draft);
+  } else {
+    state.orders.unshift(draft);
+  }
+  saveOrders();
+
+  // Limpiar currentOrder — el borrador ya quedó persistido
+  clearCurrentOrder();
+
+  // Aviso de 50+ borradores (una vez por sesión)
+  const draftCount = state.orders.filter(o => o.status === 'draft').length;
+  if (draftCount >= 50 && !_draftLimitWarned) {
+    _draftLimitWarned = true;
+    setTimeout(() => {
+      toast(`Tenés ${draftCount} borradores guardados — considerá limpiar los viejos`, 'err');
+    }, 800);
+  }
+
+  return true;
+}
+
+// Cargar un borrador al currentOrder para seguir editándolo.
+// El borrador SIGUE en el historial (redundancia voluntaria por seguridad).
+//
+// Si los precios de los items difieren de los precios actuales, se
+// actualizan automáticamente con los precios vigentes y se avisa al
+// vendedor — la lógica del pedido siempre debe tener los precios
+// vigentes para que el subtotal sea correcto al enviar.
+function loadDraftIntoCurrentOrder(draftId) {
+  const draft = state.orders.find(o => o.id === draftId && o.status === 'draft');
+  if (!draft) {
+    toast('Borrador no encontrado', 'err');
+    return false;
+  }
+
+  // Cambiar la lista activa a la del borrador ANTES de recalcular precios,
+  // así getProductPrice() usa la lista correcta. Solo si la lista del
+  // borrador es válida — borradores muy viejos podrían no tenerla.
+  const draftList = (draft.list === 'act' || draft.list === 'dist' || draft.list === 'vip')
+    ? draft.list : null;
+  let listChanged = false;
+  if (draftList && draftList !== state.activeList) {
+    state.activeList = draftList;
+    saveActiveList();
+    listChanged = true;
+  }
+
+  // Detectar items con precio desactualizado o sin precio en la lista actual
+  let priceChanges = 0, sinPrecio = 0;
+  const items = draft.items.map(it => {
+    const currentPrice = getProductPrice(it.key);
+    if (currentPrice === null) {
+      // Sin precio en esta lista — marcar pero conservar el viejo para referencia visual
+      sinPrecio++;
+      return { ...it, _noPrice: true, subtotal: 0, price: 0 };
+    }
+    if (Math.abs(currentPrice - it.price) > 0.001) {
+      priceChanges++;
+      return {
+        ...it,
+        _noPrice: false,
+        price: currentPrice,
+        subtotal: (it.qty || 0) * currentPrice,
+      };
+    }
+    return { ...it, _noPrice: false };
+  });
+
+  state.currentOrder = {
+    client:    draft.client || '',
+    items,
+    notes:     draft.notes || '',
+    createdAt: draft.createdAt || new Date().toISOString(),
+    _draftId:  draft.id,
+  };
+  saveCurrentOrder();
+
+  // Avisos diferenciados, encolados para que no se pisen
+  let delay = 700;
+  if (listChanged) {
+    setTimeout(() => {
+      toast(`Cambié a ${listDisplayName(draftList)} (la lista de este borrador)`, 'ok');
+    }, delay);
+    delay += 1200;
+  }
+  if (priceChanges > 0) {
+    setTimeout(() => {
+      toast(`⚠️ ${priceChanges} item(s) tenían precios viejos — se actualizaron a los actuales`, 'err');
+    }, delay);
+    delay += 1200;
+  }
+  if (sinPrecio > 0) {
+    setTimeout(() => {
+      toast(`⚠️ ${sinPrecio} item(s) sin precio en ${listDisplayName(state.activeList)}`, 'err');
+    }, delay);
+  }
+
+  return true;
+}
+
+// Eliminar un borrador del historial (permanente).
+function deleteDraft(draftId) {
+  const draft = state.orders.find(o => o.id === draftId && o.status === 'draft');
+  if (!draft) return;
+  const clienteStr = draft.client?.trim() || '(sin cliente)';
+  const itemCount = draft.items?.length || 0;
+  if (!confirm(
+    `¿Eliminar el borrador?\n\n` +
+    `Cliente: ${clienteStr}\n` +
+    `Items: ${itemCount}\n\n` +
+    `Esta acción es permanente.`
+  )) return;
+
+  // Si el borrador está actualmente cargado en currentOrder, desvincularlo
+  // (sino al guardar/enviar trataría de reemplazar una entrada que ya no existe).
+  // No vaciamos los items del currentOrder — el vendedor podría querer
+  // seguir editando lo que tenía visible.
+  if (state.currentOrder._draftId === draftId) {
+    state.currentOrder._draftId = null;
+    saveCurrentOrder();
+  }
+
+  state.orders = state.orders.filter(o => o.id !== draftId);
+  saveOrders();
+  if (typeof renderOrdersTab === 'function') renderOrdersTab();
+  toast('Borrador eliminado', 'ok');
+}
+
+// Compara los precios de los items de un pedido contra los precios
+// actuales del state EN LA LISTA DEL BORRADOR (no la activa).
+// Devuelve la cantidad de items con precio cambiado.
+// Usado para mostrar el badge "precios desactualizados" en borradores.
+function draftHasOutdatedPrices(draft) {
+  if (!draft || !draft.items) return 0;
+  // La lista del borrador. Si no tiene (borradores muy viejos), usar activa.
+  const list = (draft.list === 'act' || draft.list === 'dist' || draft.list === 'vip')
+    ? draft.list : state.activeList;
+  let n = 0;
+  for (const it of draft.items) {
+    const current = getProductPrice(it.key, list);
+    if (current === null) continue; // sin precio actual: no se considera "desactualizado", es "sin precio"
+    if (Math.abs(current - it.price) > 0.001) n++;
+  }
+  return n;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// BÚSQUEDA DE PRODUCTOS PARA ARMADO RÁPIDO DEL PEDIDO (v6.1)
+// ════════════════════════════════════════════════════════════════════
+//
+// El vendedor a veces recibe pedidos manuscritos del cliente y necesita
+// cargarlos rápido sin saltar entre pestañas. Esta función impulsa el
+// buscador integrado en la pestaña Pedido.
+//
+// COMPORTAMIENTO:
+//   - Devuelve hasta MAX_SEARCH_RESULTS coincidencias.
+//   - Productos CON stock van primero, productos SIN stock al final.
+//     (No los oculta: el vendedor necesita saber que el producto existe
+//     pero no se puede entregar, no que "no encontró nada".)
+//   - Ordena por relevancia básica: matches al inicio del nombre primero,
+//     después el resto. Empata por nombre alfabético.
+//   - Solo devuelve productos que tienen precio en la lista del vendedor.
+//     Sin precio no se puede agregar al pedido, así que no tiene sentido
+//     mostrarlos.
+// ════════════════════════════════════════════════════════════════════
+const MAX_SEARCH_RESULTS = 6;
+
+function searchProductsForOrder(query) {
+  const q = normalize((query || '').trim());
+  if (q.length < 2) return [];  // mínimo 2 chars para no devolver todo
+
+  // Filtrar: tiene precio en AL MENOS UNA lista Y matchea por nombre/marca/rubro.
+  // Antes filtrábamos solo por la lista activa, pero como el vendedor puede
+  // cambiar de lista durante el armado del pedido, mejor mostramos todos
+  // los productos que tengan precio en alguna lista. El render decide qué
+  // mostrar cuando la lista activa no tiene precio.
+  const matches = [];
+  for (const s of state.stock) {
+    if (!productHasAnyPrice(s._key)) continue;
+    const name  = normalize(s.product);
+    const marca = normalize(s.marca || '');
+    const rubro = normalize(s.rubro || '');
+    const nameIdx  = name.indexOf(q);
+    const marcaHit = marca.includes(q);
+    const rubroHit = rubro.includes(q);
+    if (nameIdx === -1 && !marcaHit && !rubroHit) continue;
+
+    // Score: 0 = match al inicio del nombre (mejor)
+    //        1 = match en medio del nombre
+    //        2 = match en marca o rubro solamente
+    let score;
+    if (nameIdx === 0)       score = 0;
+    else if (nameIdx > 0)    score = 1;
+    else                     score = 2;
+
+    matches.push({ item: s, score });
+  }
+
+  // Ordenar: 1) con stock antes que sin stock, 2) score asc, 3) nombre asc
+  matches.sort((a, b) => {
+    const aHas = (a.item.qty || 0) > 0;
+    const bHas = (b.item.qty || 0) > 0;
+    if (aHas !== bHas) return aHas ? -1 : 1;  // con stock primero
+    if (a.score !== b.score) return a.score - b.score;
+    return a.item.product.localeCompare(b.item.product, 'es');
+  });
+
+  return matches.slice(0, MAX_SEARCH_RESULTS).map(m => m.item);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// NUEVO PEDIDO (v6.2)
+//
+// Si el pedido actual está vacío, arranca uno nuevo sin preguntar.
+// Si tiene contenido, muestra el overlay con 3 opciones:
+//   - Guardar como borrador y empezar uno nuevo
+//   - Descartar el actual y empezar uno nuevo
+//   - Cancelar
+// ════════════════════════════════════════════════════════════════════
+function handleNewOrder() {
+  const co = state.currentOrder;
+  const hasContent = (co.items && co.items.length > 0)
+                  || (co.client && co.client.trim())
+                  || (co.notes  && co.notes.trim());
+
+  if (!hasContent) {
+    // Pedido vacío — arrancar sin preguntar
+    _startFreshOrder();
+    return;
+  }
+
+  // Hay contenido — mostrar overlay con 3 opciones
+  openOrderChoiceOverlay({
+    title:   '¿Qué hacer con el pedido actual?',
+    message: _orderChoiceMessage(co),
+    saveLabel:    '💾 Guardar como borrador',
+    discardLabel: '🗑 Descartar',
+    onSave: () => {
+      if (saveDraft()) {
+        _startFreshOrder({ skipToast: true });
+        toast('Borrador guardado — empezando uno nuevo', 'ok');
+      }
+    },
+    onDiscard: () => {
+      _startFreshOrder();
+    },
+  });
+}
+
+// Texto descriptivo del estado actual para el overlay
+function _orderChoiceMessage(co) {
+  const itemCount = co.items?.length || 0;
+  const clientStr = co.client?.trim() || '(sin cliente)';
+  return `Cliente: ${clientStr}\nItems: ${itemCount}`;
+}
+
+// Resetea currentOrder, limpia el buscador y re-renderiza. Internal helper.
+function _startFreshOrder(opts) {
+  opts = opts || {};
+  clearCurrentOrder();
+  // Limpiar también el buscador para dejar todo en blanco
+  const input = document.getElementById('orderSearchInput');
+  if (input) input.value = '';
+  const results = document.getElementById('orderSearchResults');
+  if (results) results.innerHTML = '';
+  if (typeof renderOrderTab === 'function') renderOrderTab();
+  if (typeof updateOrderBadge === 'function') updateOrderBadge();
+  if (!opts.skipToast) toast('Pedido nuevo — listo para empezar', 'ok');
+}
+
+// ════════════════════════════════════════════════════════════════════
+// CARGAR BORRADOR — entry point desde el botón "Continuar" en Mis pedidos.
+//
+// Si el pedido actual está vacío, carga directo.
+// Si tiene contenido, muestra el overlay de 3 opciones (guardar/descartar/cancelar)
+// para no perder lo que está armando.
+// ════════════════════════════════════════════════════════════════════
+function handleLoadDraft(draftId) {
+  const draft = state.orders.find(o => o.id === draftId && o.status === 'draft');
+  if (!draft) {
+    toast('Borrador no encontrado', 'err');
+    return;
+  }
+
+  const co = state.currentOrder;
+  const hasContent = (co.items && co.items.length > 0)
+                  || (co.client && co.client.trim())
+                  || (co.notes  && co.notes.trim());
+
+  // Si está editando el MISMO borrador, no hay nada que preguntar
+  if (co._draftId === draftId && hasContent) {
+    if (typeof switchTab === 'function') switchTab('order');
+    return;
+  }
+
+  if (!hasContent) {
+    // Pedido vacío — cargar directo
+    if (loadDraftIntoCurrentOrder(draftId)) {
+      if (typeof renderOrderTab === 'function') renderOrderTab();
+      if (typeof updateOrderBadge === 'function') updateOrderBadge();
+      if (typeof switchTab === 'function') switchTab('order');
+      toast(`Editando borrador: ${draft.client || '(sin cliente)'}`, 'ok');
+    }
+    return;
+  }
+
+  // Hay contenido en el pedido actual — preguntar qué hacer con él
+  openOrderChoiceOverlay({
+    title:   '¿Qué hacer con el pedido actual antes de cargar el borrador?',
+    message: _orderChoiceMessage(co),
+    saveLabel:    '💾 Guardar el actual y cargar borrador',
+    discardLabel: '🗑 Descartar el actual y cargar borrador',
+    onSave: () => {
+      if (saveDraft()) {
+        if (loadDraftIntoCurrentOrder(draftId)) {
+          if (typeof renderOrderTab === 'function') renderOrderTab();
+          if (typeof updateOrderBadge === 'function') updateOrderBadge();
+          if (typeof switchTab === 'function') switchTab('order');
+          toast(`Editando borrador: ${draft.client || '(sin cliente)'}`, 'ok');
+        }
+      }
+    },
+    onDiscard: () => {
+      clearCurrentOrder();
+      if (loadDraftIntoCurrentOrder(draftId)) {
+        if (typeof renderOrderTab === 'function') renderOrderTab();
+        if (typeof updateOrderBadge === 'function') updateOrderBadge();
+        if (typeof switchTab === 'function') switchTab('order');
+        toast(`Editando borrador: ${draft.client || '(sin cliente)'}`, 'ok');
+      }
+    },
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════
+// UI.JS — Navegación entre pestañas y render de cada vista
+// ════════════════════════════════════════════════════════════════════
+//
+// 🆕 v6 — RENDER SIMPLIFICADO
+//   Las cards del stock muestran una sola cifra de disponibilidad (qty)
+//   en lugar de dos (tienda + camino). Se eliminó la clase visual
+//   stock-camino y la etiqueta "SOLO CAMINO" que ya no aplican.
+//
+// ════════════════════════════════════════════════════════════════════
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page' + cap(tab)).classList.add('active');
+  document.getElementById('tab-' + tab).classList.add('active');
+
+  if (tab === 'home')   renderHomeTab();
+  if (tab === 'stock')  renderStockTab();
+  if (tab === 'order')  renderOrderTab();
+  if (tab === 'orders') renderOrdersTab();
+}
+
+// ══ HOME / CONFIGURACIÓN ══
+
+function renderHomeTab() {
+  const nameEl = document.getElementById('homeUserName');
+  const codeEl = document.getElementById('homeUserCode');
+  if (nameEl) nameEl.value = state.user.name || '';
+  if (codeEl) codeEl.value = state.user.code || '';
+
+  const stockInfo = document.getElementById('homeStockInfo');
+  if (stockInfo) {
+    if (state.stock.length) {
+      stockInfo.innerHTML = `✓ ${state.stock.length} productos · actualizado ${fmtDate(state.stockUpdatedAt)}`;
+      stockInfo.className = 'home-info-ok';
+    } else {
+      stockInfo.innerHTML = 'Sin stock cargado. Importá un archivo de central.';
+      stockInfo.className = 'home-info-empty';
+    }
+  }
+
+  // Resumen de precios por las 3 listas. Mostramos cuántos productos
+  // tiene cargados cada lista, para que el vendedor se entere si alguna
+  // está vacía (típicamente porque importó un archivo viejo con 1 sola lista).
+  const pricesInfo = document.getElementById('homePricesInfo');
+  if (pricesInfo) {
+    const a = Object.keys(state.prices.act  || {}).length;
+    const d = Object.keys(state.prices.dist || {}).length;
+    const v = Object.keys(state.prices.vip  || {}).length;
+    const total = a + d + v;
+    if (total > 0) {
+      pricesInfo.innerHTML = `✓ Lista 7: ${a} · Distribuidor: ${d} · VIP: ${v}`;
+      pricesInfo.className = 'home-info-ok';
+    } else {
+      pricesInfo.innerHTML = 'Sin precios cargados.';
+      pricesInfo.className = 'home-info-empty';
+    }
+  }
+}
+
+function saveUserConfig() {
+  const name = document.getElementById('homeUserName').value.trim();
+  const code = document.getElementById('homeUserCode').value.trim().toUpperCase();
+  if (!name) { toast('Escribí tu nombre', 'err'); return; }
+  if (!code) { toast('Escribí tu código corto (ej: JUA)', 'err'); return; }
+  if (code.length < 2 || code.length > 6) {
+    toast('El código debe tener entre 2 y 6 letras', 'err'); return;
+  }
+  state.user.name = name;
+  state.user.code = code;
+  saveUser();
+  toast('Configuración guardada ✓', 'ok');
+  renderHomeTab();
+}
+
+// ══ STOCK ══
+
+// Umbral por debajo del cual una card se marca como "BAJO" (warning visual).
+// Es solo para el indicador del vendedor — no es una alerta del lado de la central.
+const LOW_STOCK_THRESHOLD = 10;
+
+function renderStockTab() {
+  const container = document.getElementById('stockList');
+  if (!container) return;
+
+  // Sincronizar los chips de lista activa (Stock y Pedido comparten state.activeList)
+  document.querySelectorAll('#pageStock .list-chip').forEach(c => {
+    c.classList.toggle('active', c.dataset.list === state.activeList);
+  });
+
+  if (!state.stock.length) {
+    container.innerHTML = `<div class="empty-state">
+      <div class="ei">📦</div>
+      <p>Sin stock cargado.<br>Importá un archivo de central desde la pestaña Inicio.</p>
+    </div>`;
+    document.getElementById('stockCount').textContent = '0 productos';
+    return;
+  }
+
+  let data = state.stock;
+
+  // Filtro
+  if (state.stockFilter === 'available')     data = data.filter(s => s.qty > 0);
+  else if (state.stockFilter === 'lowstock') data = data.filter(s => s.qty > 0 && s.qty <= LOW_STOCK_THRESHOLD);
+
+  // Búsqueda
+  const q = normalize(state.stockSearch);
+  if (q) {
+    data = data.filter(s =>
+      normalize(s.product).includes(q) ||
+      (s.marca && normalize(s.marca).includes(q)) ||
+      (s.rubro && normalize(s.rubro).includes(q))
+    );
+  }
+
+  data.sort((a, b) => (a.product || '').localeCompare(b.product || '', 'es'));
+
+  document.getElementById('stockCount').textContent =
+    data.length + ' producto' + (data.length !== 1 ? 's' : '');
+
+  if (!data.length) {
+    container.innerHTML = `<div class="empty-state"><div class="ei">🔍</div>Sin resultados.</div>`;
+    return;
+  }
+
+  container.innerHTML = data.map(s => {
+    const price = getProductPrice(s._key);
+    // Si la lista activa no tiene precio para este producto, ¿alguna otra sí?
+    // Mostramos la situación de manera distinta:
+    //   - Precio en activa: muestra el precio normal.
+    //   - Sin precio en activa pero hay en otra(s): "— sin precio aquí —" con indicación.
+    //   - Sin precio en ninguna: "— sin precio —" (estado original).
+    const hasAnywhere = productHasAnyPrice(s._key);
+    let priceTxt;
+    if (price !== null) {
+      priceTxt = fmtMoney(price);
+    } else if (hasAnywhere) {
+      priceTxt = `<span class="price-other-list">sin precio en ${listDisplayName(state.activeList)}</span>`;
+    } else {
+      priceTxt = '— sin precio —';
+    }
+    const disponible = s.qty || 0;
+    const stockClass = disponible === 0 ? 'stock-out'
+                     : disponible <= LOW_STOCK_THRESHOLD ? 'stock-low'
+                     : 'stock-ok';
+    const stockLabel = disponible === 0 ? 'SIN STOCK'
+                     : disponible <= LOW_STOCK_THRESHOLD ? 'BAJO'
+                     : 'OK';
+    const safeKey = s._key.replace(/'/g, "\\'");
+    // Permitimos pedir si hay stock Y hay precio en AL MENOS una lista.
+    // Si la activa no tiene precio, addToOrder va a avisar al tocar.
+    const canOrder = hasAnywhere && disponible > 0;
+    return `<div class="stock-card ${stockClass}">
+      <div class="stock-info">
+        <div class="stock-name">${escHtml(s.product)}</div>
+        <div class="stock-sub">${escHtml([s.marca, s.rubro].filter(Boolean).join(' · ')) || '—'}</div>
+      </div>
+      <div class="stock-right">
+        <div class="stock-price">${priceTxt}</div>
+        <div class="stock-qty">
+          <span class="stock-qty-val">${fmt(disponible)}</span>
+          <span class="stock-qty-lbl ${stockClass}">${stockLabel}</span>
+        </div>
+        ${canOrder
+          ? `<button class="btn-add" onclick="openAddProductOverlay('${safeKey}')">+ Pedido</button>`
+          : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function setStockFilter(val, el) {
+  state.stockFilter = val;
+  document.querySelectorAll('#pageStock .chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  renderStockTab();
+}
+
+function searchStock() {
+  state.stockSearch = document.getElementById('stockSearchInput').value;
+  document.getElementById('stockClearBtn').classList.toggle('visible', state.stockSearch.length > 0);
+  renderStockTab();
+}
+
+function clearStockSearch() {
+  document.getElementById('stockSearchInput').value = '';
+  state.stockSearch = '';
+  document.getElementById('stockClearBtn').classList.remove('visible');
+  renderStockTab();
+}
+
+// Overlay para agregar producto al pedido con cantidad
+let _addProductKey = null;
+
+function openAddProductOverlay(key) {
+  const product = state.stock.find(s => s._key === key);
+  if (!product) return;
+  _addProductKey = key;
+  const disponible = product.qty || 0;
+  document.getElementById('addOverlayName').textContent = product.product;
+  document.getElementById('addOverlaySub').textContent =
+    `Disponible: ${disponible} · ${fmtMoney(getProductPrice(key))}`;
+  document.getElementById('addOverlayQty').value = '1';
+  document.getElementById('addOverlay').classList.add('visible');
+  setTimeout(() => document.getElementById('addOverlayQty').focus(), 100);
+}
+
+function closeAddOverlay() {
+  document.getElementById('addOverlay').classList.remove('visible');
+  _addProductKey = null;
+}
+
+function confirmAddProduct() {
+  if (!_addProductKey) return;
+  const qty = document.getElementById('addOverlayQty').value;
+  if (addToOrder(_addProductKey, qty)) {
+    closeAddOverlay();
+    toast('Agregado al pedido ✓', 'ok');
+    // Actualizar badge de pedido si está visible
+    updateOrderBadge();
+  }
+}
+
+function updateOrderBadge() {
+  const badge = document.getElementById('orderBadge');
+  if (!badge) return;
+  const count = state.currentOrder.items.length;
+  if (count > 0) {
+    badge.textContent = count;
+    badge.style.display = '';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// ══ PEDIDO ACTUAL ══
+
+// ────────────────────────────────────────────────────────────────────
+// BÚSQUEDA INTEGRADA EN LA PESTAÑA PEDIDO (v6.1)
+// ────────────────────────────────────────────────────────────────────
+// El vendedor escribe en el buscador → aparecen hasta 6 resultados.
+// Cada uno tiene su propio input de cantidad (default 1) y botón
+// "Agregar". Al agregar, el buscador se LIMPIA para escribir el
+// siguiente producto (UX de "ráfaga" para pedidos manuscritos).
+// ────────────────────────────────────────────────────────────────────
+
+let _orderSearchTimer = null;     // debounce id
+
+function orderSearchInput(value) {
+  // Debounce: la búsqueda recorre state.stock entero. Para no rehacer
+  // el trabajo en cada tecla, esperamos 150ms tras la última pulsación.
+  // En la práctica el vendedor no percibe el delay porque siempre tipea
+  // varios caracteres antes de mirar los resultados.
+  if (_orderSearchTimer) clearTimeout(_orderSearchTimer);
+  _orderSearchTimer = setTimeout(() => {
+    renderOrderSearchResults(value || '');
+  }, 150);
+}
+
+function clearOrderSearchUI() {
+  const input = document.getElementById('orderSearchInput');
+  if (input) input.value = '';
+  const results = document.getElementById('orderSearchResults');
+  if (results) results.innerHTML = '';
+  // Devolver el foco al input para que el vendedor pueda seguir
+  // escribiendo el siguiente producto sin tocar la pantalla.
+  if (input) input.focus();
+}
+
+function renderOrderSearchResults(query) {
+  const container = document.getElementById('orderSearchResults');
+  if (!container) return;
+
+  const trimmed = (query || '').trim();
+  if (trimmed.length < 2) {
+    // Vaciar pero mostrar un hint para que el vendedor sepa por qué no
+    // hay resultados aún. Solo si escribió algo (1 caracter), no si
+    // está completamente vacío.
+    if (trimmed.length === 1) {
+      container.innerHTML = `<div class="search-hint">Escribí al menos 2 letras...</div>`;
+    } else {
+      container.innerHTML = '';
+    }
+    return;
+  }
+
+  const results = searchProductsForOrder(trimmed);
+  if (!results.length) {
+    container.innerHTML = `<div class="search-hint">Sin resultados para "${escHtml(trimmed)}"</div>`;
+    return;
+  }
+
+  container.innerHTML = results.map(s => {
+    const qty = s.qty || 0;
+    const safeKey = s._key.replace(/'/g, "\\'");
+    const price = getProductPrice(s._key);
+    // Si la lista activa no tiene precio para este producto pero searchProductsForOrder
+    // lo devolvió (porque tiene precio en alguna otra lista), avisamos visualmente
+    // y no permitimos agregar desde acá (al tocar Agregar sin precio en la activa,
+    // addToOrder ya muestra el error).
+    const noPriceInActive = (price === null);
+    const priceTxt = noPriceInActive
+      ? `<span class="price-other-list">sin precio en ${listDisplayName(state.activeList)}</span>`
+      : fmtMoney(price);
+
+    // Badge de disponibilidad
+    let badgeCls, badgeTxt;
+    if (qty === 0) {
+      badgeCls = 'sb-out';   badgeTxt = 'SIN STOCK';
+    } else if (qty <= LOW_STOCK_THRESHOLD) {
+      badgeCls = 'sb-low';   badgeTxt = `${qty} disp.`;
+    } else {
+      badgeCls = 'sb-ok';    badgeTxt = `${qty} disp.`;
+    }
+
+    const subInfo = [s.marca, s.rubro].filter(Boolean).join(' · ') || '—';
+    // No deshabilitamos el botón Agregar para SIN STOCK — el addToOrder
+    // ya pide confirmación si supera lo disponible, y el vendedor a veces
+    // necesita anotar igual lo que el cliente pidió.
+    //
+    // Para "sin precio en la lista activa" sí deshabilitamos el Agregar —
+    // no tiene sentido agregar un item con precio 0 al pedido.
+    const addDisabled = noPriceInActive ? 'disabled' : '';
+    return `<div class="osr-card ${qty === 0 ? 'osr-out' : ''} ${noPriceInActive ? 'osr-noprice' : ''}" data-key="${escHtml(s._key)}">
+      <div class="osr-info">
+        <div class="osr-name">${escHtml(s.product)}</div>
+        <div class="osr-sub">${escHtml(subInfo)} · ${priceTxt}</div>
+        <span class="osr-badge ${badgeCls}">${badgeTxt}</span>
+      </div>
+      <div class="osr-actions">
+        <input type="number" class="osr-qty"
+          value="1" min="1" inputmode="numeric" ${addDisabled}
+          onkeydown="if(event.key==='Enter'){event.preventDefault();addFromSearchResult('${safeKey}')}">
+        <button class="osr-add-btn" onclick="addFromSearchResult('${safeKey}')" ${addDisabled}>Agregar</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Click en "Agregar" de un resultado → lee la cantidad de su input,
+// llama a addToOrder, y si funciona limpia el buscador para el siguiente.
+function addFromSearchResult(key) {
+  // Buscar la card del producto por data-key. Como _key puede tener
+  // caracteres raros, usamos un loop manual sobre todas las cards en
+  // vez de querySelector con attribute selector (que requeriría escape
+  // CSS adicional).
+  const cards = document.querySelectorAll('#orderSearchResults .osr-card');
+  let qtyInput = null;
+  for (const card of cards) {
+    if (card.getAttribute('data-key') === key) {
+      qtyInput = card.querySelector('.osr-qty');
+      break;
+    }
+  }
+  if (!qtyInput) {
+    toast('No se encontró el producto en los resultados', 'err');
+    return;
+  }
+
+  const qty = qtyInput.value;
+  if (addToOrder(key, qty)) {
+    toast('Agregado al pedido ✓', 'ok');
+    // Limpiar el buscador y volver el foco al input principal — listo
+    // para el siguiente producto del pedido manuscrito.
+    clearOrderSearchUI();
+    // Re-renderizar la lista de items para que aparezca el agregado
+    renderOrderTab();
+    updateOrderBadge();
+  }
+}
+
+function renderOrderTab() {
+  const container = document.getElementById('orderItemsList');
+  const items = state.currentOrder.items;
+
+  document.getElementById('orderClient').value = state.currentOrder.client || '';
+  document.getElementById('orderNotes').value = state.currentOrder.notes || '';
+
+  // Sincronizar los chips de lista activa con state.activeList
+  document.querySelectorAll('#pageOrder .list-chip').forEach(c => {
+    c.classList.toggle('active', c.dataset.list === state.activeList);
+  });
+
+  if (!items.length) {
+    container.innerHTML = `<div class="empty-state">
+      <div class="ei">📝</div>
+      <p>Tu pedido está vacío.<br>Buscá productos arriba o agregalos desde la pestaña Stock.</p>
+    </div>`;
+    document.getElementById('orderTotal').textContent = fmtMoney(0);
+    document.getElementById('btnSendOrder').disabled = true;
+    return;
+  }
+
+  container.innerHTML = items.map(it => {
+    const safeKey = it.key.replace(/'/g, "\\'");
+    const availBadge = _availabilityBadge(it.key, it.qty);
+    // Si el item no tiene precio en la lista activa, lo marcamos rojo
+    // con un mensaje claro. El subtotal queda en 0 hasta que el vendedor
+    // cambie de lista o quite el item.
+    const noPriceWarn = it._noPrice
+      ? ` · <span class="oi-avail oi-avail-over">⚠ sin precio en ${listDisplayName(state.activeList)}</span>`
+      : '';
+    const priceCu = it._noPrice ? 'sin precio' : `${fmtMoney(it.price)} c/u`;
+    const subtotalTxt = it._noPrice ? '—' : fmtMoney(it.subtotal);
+    return `<div class="order-item ${it._noPrice ? 'order-item-noprice' : ''}">
+      <div class="order-item-info">
+        <div class="order-item-name">${escHtml(it.label)}</div>
+        <div class="order-item-sub">${priceCu}${availBadge}${noPriceWarn}</div>
+      </div>
+      <div class="order-item-controls">
+        <button class="qty-btn" onclick="changeOrderQty('${safeKey}',-1)">−</button>
+        <input type="number" class="qty-input" value="${it.qty}" min="1"
+          onchange="updateOrderItem('${safeKey}',this.value);renderOrderTab();updateOrderBadge()">
+        <button class="qty-btn" onclick="changeOrderQty('${safeKey}',1)">+</button>
+      </div>
+      <div class="order-item-subtotal">${subtotalTxt}</div>
+      <button class="btn-remove-item" onclick="removeFromOrder('${safeKey}');renderOrderTab();updateOrderBadge()">✕</button>
+    </div>`;
+  }).join('');
+
+  document.getElementById('orderTotal').textContent = fmtMoney(orderTotal(items));
+  // El botón Enviar se deshabilita si hay items sin precio (sendOrder
+  // los rechaza igual, pero es mejor UX que el botón se vea bloqueado
+  // y no que el vendedor toque "Enviar" y se entere ahí)
+  const hasNoPrice = items.some(it => it._noPrice);
+  document.getElementById('btnSendOrder').disabled = hasNoPrice;
+}
+
+// Devuelve el HTML del badge de disponibilidad para un item del pedido.
+// Aparece al lado del precio unitario en la card.
+//
+// Estados visuales (4):
+//   - "sin info"  : el producto no está en el stock importado actual
+//                   (puede haber sido removido por la central, o el vendedor
+//                   armó el pedido con un JSON viejo). Gris.
+//   - rojo + ⚠️  : la cantidad pedida supera lo disponible.
+//   - amarillo   : la cantidad pedida es igual al disponible, o el
+//                  disponible cae bajo el umbral de stock bajo.
+//   - verde      : tenés stock de sobra.
+function _availabilityBadge(key, requestedQty) {
+  const stockItem = state.stock.find(s => s._key === key);
+  if (!stockItem) {
+    return ` · <span class="oi-avail oi-avail-unknown" title="Este producto no está en el stock actual">sin info</span>`;
+  }
+  const disponible = stockItem.qty || 0;
+  if (requestedQty > disponible) {
+    return ` · <span class="oi-avail oi-avail-over" title="Pediste más que el stock disponible">⚠ pediste ${requestedQty}, hay ${disponible}</span>`;
+  }
+  if (requestedQty === disponible || disponible <= LOW_STOCK_THRESHOLD) {
+    return ` · <span class="oi-avail oi-avail-low">${disponible} disp.</span>`;
+  }
+  return ` · <span class="oi-avail oi-avail-ok">${disponible} disp.</span>`;
+}
+
+function changeOrderQty(key, delta) {
+  const item = state.currentOrder.items.find(i => i.key === key);
+  if (!item) return;
+  const newQty = item.qty + delta;
+  // Si el botón "−" llevaría a 0 o menos, preguntamos antes de borrar el item.
+  // Sin esto, un click de más elimina el producto silenciosamente.
+  if (newQty < 1) {
+    if (!confirm(`¿Quitar "${item.label}" del pedido?`)) return;
+    removeFromOrder(key);
+  } else {
+    updateOrderItem(key, newQty);
+  }
+  renderOrderTab();
+  updateOrderBadge();
+}
+
+function updateOrderClient() {
+  state.currentOrder.client = document.getElementById('orderClient').value;
+  saveCurrentOrder();
+}
+
+function updateOrderNotes() {
+  state.currentOrder.notes = document.getElementById('orderNotes').value;
+  saveCurrentOrder();
+}
+
+// Flag para evitar doble disparo del envío. En desktop con doble click rápido
+// se pueden generar dos pedidos antes de que termine el primer flujo (que
+// limpia currentOrder). En mobile menos probable pero pasa con conexiones
+// lentas mientras se descarga el Excel.
+let _sendingOrder = false;
+
+function handleSendOrder() {
+  if (_sendingOrder) return; // ya en curso, ignorar
+  _sendingOrder = true;
+
+  const btn = document.getElementById('btnSendOrder');
+  const prevText = btn ? btn.textContent : null;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Enviando…';
+  }
+
+  try {
+    updateOrderClient();
+    updateOrderNotes();
+    const order = sendOrder();
+    if (!order) {
+      // Validación falló (cliente vacío, items vacíos, etc.). sendOrder
+      // ya mostró el toast. Restauramos el botón y salimos.
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = prevText;
+      }
+      _sendingOrder = false;
+      return;
+    }
+    // Por defecto: Excel para mandar directo a la central
+    exportOrderAsExcel(order);
+    // Además, si la nube está configurada, subir el pedido (con cola offline).
+    // No interrumpe el flujo del Excel — es un extra.
+    if (typeof pushOrderSafe === 'function') pushOrderSafe(order);
+    // Limpiar el buscador — el pedido se envió y ahora arranca uno nuevo
+    const searchInput = document.getElementById('orderSearchInput');
+    if (searchInput) searchInput.value = '';
+    const searchResults = document.getElementById('orderSearchResults');
+    if (searchResults) searchResults.innerHTML = '';
+    renderOrderTab();
+    updateOrderBadge();
+    if (typeof renderOrdersTab === 'function') renderOrdersTab();
+  } finally {
+    // El botón vuelve a la normalidad. Como sendOrder() limpia currentOrder,
+    // renderOrderTab() ya lo dejó disabled (porque items.length === 0).
+    // Solo restauramos el texto.
+    if (btn) btn.textContent = prevText;
+    _sendingOrder = false;
+  }
+}
+
+function handleClearOrder() {
+  if (!state.currentOrder.items.length) return;
+  if (!confirm('¿Vaciar el pedido actual?')) return;
+  clearCurrentOrder();
+  // Limpiar también el buscador
+  const searchInput = document.getElementById('orderSearchInput');
+  if (searchInput) searchInput.value = '';
+  const searchResults = document.getElementById('orderSearchResults');
+  if (searchResults) searchResults.innerHTML = '';
+  renderOrderTab();
+  updateOrderBadge();
+  toast('Pedido vaciado', 'ok');
+}
+
+// ══ HISTORIAL DE PEDIDOS ══
+
+// Filtro actual de la pestaña "Mis pedidos"
+// 'all' | 'draft' | 'sent'
+let _ordersFilter = 'all';
+
+function setOrdersFilter(val, el) {
+  _ordersFilter = val;
+  document.querySelectorAll('#pageOrders .chip').forEach(c => c.classList.remove('active'));
+  if (el) el.classList.add('active');
+  renderOrdersTab();
+}
+
+function renderOrdersTab() {
+  const container = document.getElementById('ordersList');
+  if (!container) return;
+
+  // Actualizar contadores en los chips
+  const drafts = state.orders.filter(o => o.status === 'draft').length;
+  const sent   = state.orders.filter(o => o.status === 'sent' || o.status === 'accepted' || o.status === 'rejected').length;
+  const elDraftBadge = document.getElementById('chipDraftCount');
+  const elSentBadge  = document.getElementById('chipSentCount');
+  if (elDraftBadge) elDraftBadge.textContent = drafts > 0 ? `(${drafts})` : '';
+  if (elSentBadge)  elSentBadge.textContent  = sent   > 0 ? `(${sent})`   : '';
+
+  // Filtrar
+  let orders = state.orders;
+  if (_ordersFilter === 'draft') {
+    orders = orders.filter(o => o.status === 'draft');
+  } else if (_ordersFilter === 'sent') {
+    orders = orders.filter(o => o.status !== 'draft');
+  }
+
+  // Ordenar: borradores por updatedAt desc, enviados por sentAt desc.
+  // El state.orders se mantiene en orden de inserción; acá lo reordenamos
+  // para que dentro de cada grupo el más reciente esté arriba.
+  orders = [...orders].sort((a, b) => {
+    const ta = a.status === 'draft' ? (a.updatedAt || a.createdAt || '') : (a.sentAt || a.createdAt || '');
+    const tb = b.status === 'draft' ? (b.updatedAt || b.createdAt || '') : (b.sentAt || b.createdAt || '');
+    return tb.localeCompare(ta);
+  });
+
+  if (!orders.length) {
+    const emptyMsg = _ordersFilter === 'draft' ? 'No tenés borradores guardados.'
+                   : _ordersFilter === 'sent'  ? 'No enviaste pedidos todavía.'
+                   : 'Sin pedidos todavía.';
+    container.innerHTML = `<div class="empty-state">
+      <div class="ei">📋</div>
+      <p>${emptyMsg}</p>
+    </div>`;
+    return;
+  }
+
+  container.innerHTML = orders.map(o => {
+    const safeId = String(o.id).replace(/[^a-zA-Z0-9\-_]/g, '');
+    const listName = o.list === 'act' ? 'Act' : o.list === 'dist' ? 'Dist' : 'VIP';
+    const isDraft = o.status === 'draft';
+
+    if (isDraft) {
+      const fechaTxt = fmtDate(o.updatedAt || o.createdAt);
+      const itemCount = o.items?.length || 0;
+      const clientStr = o.client?.trim() || '(sin cliente)';
+      const outdated = draftHasOutdatedPrices(o);
+      const outdatedTxt = outdated > 0
+        ? `<div class="order-card-warn">⚠️ ${outdated} ítem(s) con precios desactualizados</div>`
+        : '';
+      // Si este borrador es el que se está editando ahora, marcarlo
+      const isCurrent = state.currentOrder._draftId === o.id;
+      const currentMark = isCurrent ? `<div class="order-card-warn order-card-current">✏️ Editando ahora</div>` : '';
+      return `<div class="order-card order-card-draft">
+        <div class="order-card-header">
+          <div>
+            <div class="order-card-id">#${escHtml(o.id)}</div>
+            <div class="order-card-client">${escHtml(clientStr)}</div>
+          </div>
+          <span class="badge-draft">📝 BORRADOR</span>
+        </div>
+        <div class="order-card-meta">
+          ${fechaTxt} · ${itemCount} producto${itemCount !== 1 ? 's' : ''} · ${listName}
+        </div>
+        <div class="order-card-total">Total: ${fmtMoney(o.total || 0)}</div>
+        ${currentMark}
+        ${outdatedTxt}
+        <div class="order-card-actions">
+          <button class="btn-mini btn-mini-primary" onclick="handleLoadDraft('${safeId}')">✏️ Continuar</button>
+          <button class="btn-mini btn-mini-del" onclick="deleteDraft('${safeId}')">🗑 Eliminar</button>
+        </div>
+      </div>`;
+    }
+
+    // Pedido enviado (incluye accepted/rejected)
+    const statusBadge = o.status === 'accepted' ? '<span class="badge-accepted">✓ Aceptado</span>'
+                      : o.status === 'rejected' ? '<span class="badge-rejected">✕ Rechazado</span>'
+                      : '<span class="badge-sent">⏳ Enviado</span>';
+    const cloudBadge = o._cloud === 'sent'   ? '<span class="badge-cloud-ok">☁ En la nube</span>'
+                     : o._cloud === 'queued' ? '<span class="badge-cloud-pend">☁ En cola</span>'
+                     : '';
+    const cloudBtn = (o._cloud === 'sent')
+      ? ''
+      : `<button class="btn-mini" onclick="pushOrderById('${safeId}')">☁⬆ Subir</button>`;
+    return `<div class="order-card">
+      <div class="order-card-header">
+        <div>
+          <div class="order-card-id">#${escHtml(o.id)}</div>
+          <div class="order-card-client">${escHtml(o.client)}</div>
+        </div>
+        ${statusBadge}
+      </div>
+      <div class="order-card-meta">
+        ${fmtDate(o.sentAt)} · ${o.items.length} producto${o.items.length !== 1 ? 's' : ''} · ${listName} ${cloudBadge}
+      </div>
+      <div class="order-card-total">Total: ${fmtMoney(o.total)}</div>
+      <div class="order-card-actions">
+        <button class="btn-mini" onclick="_exportOrderById('${safeId}','excel')">⬇ Excel</button>
+        <button class="btn-mini" onclick="_exportOrderById('${safeId}','json')">⬇ JSON</button>
+        ${cloudBtn}
+        <button class="btn-mini btn-mini-del" onclick="deleteOrder('${safeId}')">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Helper para los botones de export desde el historial — evita interpolar
+// state.orders.find() directo en el onclick (que era frágil ante caracteres especiales)
+function _exportOrderById(id, kind) {
+  const order = state.orders.find(o => o.id === id);
+  if (!order) {
+    toast('No se encontró el pedido', 'err');
+    return;
+  }
+  if (kind === 'excel')      exportOrderAsExcel(order);
+  else if (kind === 'json')  exportOrderJSON(order);
+}
+
+// ══ INIT ══
+
+// ════════════════════════════════════════════════════════════════════
+// OVERLAY DE 3 OPCIONES (v6.2)
+// Reemplaza el confirm() nativo cuando hay que ofrecer 3 vías:
+//   Guardar como borrador / Descartar / Cancelar
+//
+// Se usa al tocar "Nuevo pedido" con contenido y al cargar un borrador
+// con un pedido actual en curso.
+// ════════════════════════════════════════════════════════════════════
+let _orderChoiceHandlers = null;
+
+function openOrderChoiceOverlay(opts) {
+  // opts: { title, message, saveLabel, discardLabel, onSave, onDiscard }
+  document.getElementById('orderChoiceTitle').textContent = opts.title || '';
+  document.getElementById('orderChoiceMessage').textContent = opts.message || '';
+  document.getElementById('orderChoiceSaveBtn').textContent = opts.saveLabel || '💾 Guardar';
+  document.getElementById('orderChoiceDiscardBtn').textContent = opts.discardLabel || '🗑 Descartar';
+
+  _orderChoiceHandlers = {
+    onSave:    opts.onSave    || (() => {}),
+    onDiscard: opts.onDiscard || (() => {}),
+  };
+  document.getElementById('orderChoiceOverlay').classList.add('visible');
+}
+
+function closeOrderChoiceOverlay() {
+  document.getElementById('orderChoiceOverlay').classList.remove('visible');
+  _orderChoiceHandlers = null;
+}
+
+function orderChoiceSave() {
+  const h = _orderChoiceHandlers;
+  closeOrderChoiceOverlay();
+  if (h && h.onSave) h.onSave();
+}
+
+function orderChoiceDiscard() {
+  const h = _orderChoiceHandlers;
+  closeOrderChoiceOverlay();
+  if (h && h.onDiscard) h.onDiscard();
+}
+
+window.addEventListener('load', () => {
+  // Si no hay configuración completa, mostrar pestaña inicio
+  if (!state.user.name || !state.user.code) {
+    switchTab('home');
+  } else {
+    switchTab('stock');
+  }
+  updateOrderBadge();
+
+  // Soporte de Enter en los overlays (UX en mobile y desktop):
+  //   - Enter en el input del cliente → genera plantilla
+  //   - Enter en el input de cantidad → confirma agregar
+  const cliInput = document.getElementById('clientNameInput');
+  if (cliInput) {
+    cliInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); confirmClientName(); }
+    });
+  }
+  const qtyInput = document.getElementById('addOverlayQty');
+  if (qtyInput) {
+    qtyInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); confirmAddProduct(); }
+    });
+  }
+
+  // Avisar al vendedor si tiene un pedido en construcción de una sesión anterior.
+  // Solo si tiene items (un pedido con solo cliente/notas pero sin items no vale la pena anunciar).
+  if (state.currentOrder.items.length > 0) {
+    const count = state.currentOrder.items.length;
+    const client = state.currentOrder.client || '(sin cliente)';
+    setTimeout(() => {
+      toast(`Tenés un pedido en curso: ${count} ítem(s) para ${client}`, 'ok');
+    }, 600);
+  }
+});
+
+</script>
+</body>
+</html>
