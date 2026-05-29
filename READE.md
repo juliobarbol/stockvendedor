@@ -1,1 +1,1 @@
-stock vendedor - app de vendedores
+stock vendedor - app de vendedores.
