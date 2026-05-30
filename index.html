@@ -1702,14 +1702,24 @@ function toast(msg, type) {
   }, 3500);
 }
 
-// ID único para pedidos
+// ID único para pedidos: prefijo de fecha legible + sufijo CRIPTOGRÁFICO
+// (48 bits). Reemplaza a Math.random (espacio chico, colisionable entre
+// vendedores/días). Se genera UNA sola vez por borrador y se reutiliza en
+// cada reintento → es la clave de idempotencia contra duplicados de red.
+// IMPORTANTE: requiere la constraint única (ns, order_id) en Supabase para
+// que el sufijo random no pueda chocar y "pisar" un pedido distinto. — v6.6
 function generateOrderId() {
   const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  const r = Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `${y}${m}${day}-${r}`;
+  const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  let suffix;
+  try {
+    const b = crypto.getRandomValues(new Uint8Array(6));
+    suffix = [...b].map(x => x.toString(16).padStart(2, '0')).join('');
+  } catch (e) {
+    // Fallback para WebViews muy viejos sin crypto (improbable en Chrome Android)
+    suffix = (Math.random().toString(16).slice(2) + Math.random().toString(16).slice(2)).slice(0, 12);
+  }
+  return `${ymd}-${suffix}`;
 }
 
 // Fecha legible
@@ -2234,23 +2244,33 @@ function _setOrderCloudStatus(orderId, status) {
   if (o) { o._cloud = status; saveOrders(); }
 }
 
-// Sube UN pedido. Devuelve true si el server lo aceptó.
+// Sube UN pedido. Devuelve true si quedó firme en el server.
+// IDEMPOTENTE: si la red se corta justo después de insertar pero antes del
+// ACK, el reintento vuelve a mandar el mismo order_id; con la constraint
+// única (ns, order_id) el server responde 23505 (unique_violation), que
+// para nosotros es ÉXITO (el pedido YA está) → no se duplica. Sin la
+// constraint, se comporta como antes. — v6.6
 async function _pushOrderRaw(order) {
   const client = scClient();
   if (!client) return false;
   const c = scGetConfig();
-  const { error } = await client.from('orders').insert({
-    ns:       c.ns,
-    order_id: order.id,
-    vendor:   order.vendor || '',
-    client:   order.client || '',
-    payload:  order,
-  });
-  if (error) {
-    console.warn('push order error:', error.message);
-    return false;
+  try {
+    const { error } = await client.from('orders').insert({
+      ns:       c.ns,
+      order_id: order.id,
+      vendor:   order.vendor || '',
+      client:   order.client || '',
+      payload:  order,
+    });
+    if (error && error.code !== '23505') {
+      console.warn('push order error:', error.message);
+      return false;          // error real → reintentar (queda en cola)
+    }
+    return true;             // subido, o ya existía (idempotente)
+  } catch (e) {
+    console.warn('push order red:', e.message);
+    return false;            // error de red → reintentar
   }
-  return true;
 }
 
 // Intenta subir un pedido recién enviado. Si falla, lo encola.
@@ -2276,20 +2296,30 @@ async function pushOrderSafe(order) {
 }
 
 // Reintenta subir todos los pedidos en cola. Silencioso salvo que suba algo.
+let _flushingQueue = false; // mutex: una sola pasada de flush a la vez (v6.6)
 async function flushOrderQueue(opts = {}) {
+  if (_flushingQueue) return;                       // ya hay un flush en curso
   if (!scIsConfigured() || !scLibReady()) return;
   const q = _loadOrderQueue();
   if (!q.length) return;
 
+  _flushingQueue = true;
   let subidos = 0;
-  for (const order of q) {
-    const ok = await _pushOrderRaw(order);
-    if (ok) {
-      _dequeueOrder(order.id);
-      _setOrderCloudStatus(order.id, 'sent');
-      subidos++;
+  try {
+    for (const order of q) {
+      const ok = await _pushOrderRaw(order);
+      if (ok) {
+        _dequeueOrder(order.id);
+        _setOrderCloudStatus(order.id, 'sent');
+        subidos++;
+      } else {
+        break; // corte en el primer fallo: mantener el orden, reintentar luego
+      }
     }
+  } finally {
+    _flushingQueue = false;
   }
+
   if (subidos > 0) {
     toast(`${subidos} pedido(s) en cola subidos a la nube ✓`, 'ok');
     if (typeof renderOrdersTab === 'function') renderOrdersTab();
@@ -2351,6 +2381,14 @@ if (document.readyState === 'loading') {
 } else {
   scInitUI();
 }
+
+// Vaciar la cola de pedidos al recuperar la conexión o al volver la app al
+// frente (antes solo se intentaba al abrir la app). El mutex de
+// flushOrderQueue evita envíos dobles si varios eventos coinciden. — v6.6
+window.addEventListener('online', () => { flushOrderQueue(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') flushOrderQueue();
+});
 
 // ════════════════════════════════════════════════════════════════════
 // REALTIME.JS — StockVendedor — actualización en tiempo real (Supabase Realtime)
