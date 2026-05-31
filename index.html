@@ -1274,8 +1274,17 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
       </div>
     </div>
     <div class="add-overlay-actions">
-      <button class="btn-cancel" onclick="closeClientNameOverlay()">Cancelar</button>
-      <button class="btn-confirm" onclick="confirmClientName()">Generar plantilla</button>
+  </div>
+</div>
+
+<!-- Modal: plantilla lista → enviar por WhatsApp o descargar -->
+<div class="overlay" id="templateReadyOverlay">
+  <div class="add-overlay-content">
+    <div class="add-overlay-name">✅ Plantilla lista</div>
+    <div class="add-overlay-sub" id="tplReadyMsg">Plantilla lista.</div>
+    <div class="add-overlay-actions" style="flex-direction:column;gap:.6rem">
+      <button class="btn-confirm" id="tplShareBtn" style="width:100%" onclick="shareTemplateNow()">📲 Enviar por WhatsApp</button>
+      <button class="btn-cancel" style="width:100%" onclick="downloadTemplateNow()">⬇ Descargar</button>
     </div>
   </div>
 </div>
@@ -2568,31 +2577,52 @@ function _downloadBlob(blob, fileName) {
   document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
 }
-function _shareOrDownloadXlsx(wb, fileName, shareText, okMsg) {
-  let buf;
-  try { buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }); }
-  catch (e) { XLSX.writeFile(wb, fileName); toast(okMsg, 'ok'); return; }
-  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+// Archivo de plantilla ya armado, a la espera de que el vendedor elija
+// Enviar o Descargar (cada uno es un toque limpio del usuario).
+let _pendingTpl = null;
 
-  let file = null;
-  try { file = new File([blob], fileName, { type: blob.type }); } catch (e) { file = null; }
-
-  const puedeCompartir = !!(file && navigator.share && navigator.canShare && navigator.canShare({ files: [file] }));
-  if (puedeCompartir) {
-    navigator.share({ files: [file], title: fileName, text: shareText })
-      .then(() => toast('Plantilla compartida ✓', 'ok'))
-      .catch(err => {
-        if (err && err.name === 'AbortError') return;   // el vendedor cerró el menú
-        _downloadBlob(blob, fileName);
-        toast('No se pudo compartir; la descargué' + (err && err.name ? ' (' + err.name + ')' : ''), 'err');
-      });
-  } else {
-    _downloadBlob(blob, fileName);
-    const motivo = !navigator.share ? 'este navegador no comparte archivos'
-                 : !navigator.canShare ? 'sin canShare'
-                 : 'el formato no se puede compartir acá';
-    toast('Plantilla descargada (' + motivo + ')', 'ok');
+function _showTemplateReady(cliente, count) {
+  const ov = document.getElementById('templateReadyOverlay');
+  const msg = document.getElementById('tplReadyMsg');
+  if (msg) msg.textContent = `Plantilla para "${cliente}" — ${count} productos lista.`;
+  // Mostrar el botón Enviar solo si el teléfono puede compartir el archivo.
+  const file = _pendingTpl && _pendingTpl.file;
+  const canShare = !!(file && navigator.share && navigator.canShare && navigator.canShare({ files: [file] }));
+  const shareBtn = document.getElementById('tplShareBtn');
+  if (shareBtn) shareBtn.style.display = canShare ? '' : 'none';
+  if (ov) ov.classList.add('visible');
+  if (!ov) { // sin overlay (fallback): descargar directo
+    _downloadBlob(_pendingTpl.blob, _pendingTpl.fileName);
+    toast('Plantilla descargada ✓', 'ok');
   }
+}
+
+function _closeTemplateReady() {
+  const ov = document.getElementById('templateReadyOverlay');
+  if (ov) ov.classList.remove('visible');
+}
+
+// Enviar por WhatsApp/otra app — toque DIRECTO del usuario, sin trabajo
+// pesado antes (el archivo ya está armado) → gesto válido garantizado.
+function shareTemplateNow() {
+  if (!_pendingTpl || !_pendingTpl.file) { _closeTemplateReady(); return; }
+  navigator.share({
+    files: [_pendingTpl.file],
+    title: _pendingTpl.fileName,
+    text: `Plantilla de pedido para ${_pendingTpl.cliente} — Lista ${_pendingTpl.listName}. Completá la columna CANTIDAD y devolvé el archivo.`,
+  })
+    .then(() => { _closeTemplateReady(); toast('Plantilla compartida ✓', 'ok'); })
+    .catch(err => {
+      if (err && err.name === 'AbortError') return;   // el vendedor cerró el menú
+      toast('No se pudo compartir (' + (err && err.name || 'error') + '). Tocá Descargar.', 'err');
+    });
+}
+
+function downloadTemplateNow() {
+  if (!_pendingTpl) { _closeTemplateReady(); return; }
+  _downloadBlob(_pendingTpl.blob, _pendingTpl.fileName);
+  _closeTemplateReady();
+  toast('Plantilla descargada ✓', 'ok');
 }
 
 // Generación real de la plantilla (se invoca con cliente + lista ya validados)
@@ -2714,9 +2744,17 @@ function _doGenerateTemplate(cliente, list) {
     // Filename: Plantilla_VIP_JUL_Cliente_2026-05-18.xlsx
     const safeClient = cliente.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30);
     const fileName = `Plantilla_${listName}_${state.user.code}_${safeClient}_${meta.date}.xlsx`;
-    const shareText = `Plantilla de pedido para ${cliente} — Lista ${listName}. Completá la columna CANTIDAD y devolvé el archivo. (${state.user.name})`;
-    const okMsg = `Plantilla para "${cliente}" generada — ${items.length} productos ✓`;
-    _shareOrDownloadXlsx(wb, fileName, shareText, okMsg);
+    // Armar el binario AHORA (puede tardar en equipos lentos). El ENVÍO se
+    // hace después con un toque aparte, así el menú de compartir no falla por
+    // gesto vencido (NotAllowedError al compartir tras un armado lento).
+    let buf;
+    try { buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }); }
+    catch (e) { XLSX.writeFile(wb, fileName); toast(`Plantilla para "${cliente}" descargada — ${items.length} productos ✓`, 'ok'); return; }
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    let file = null;
+    try { file = new File([blob], fileName, { type: blob.type }); } catch (e) { file = null; }
+    _pendingTpl = { blob, file, fileName, cliente, listName };
+    _showTemplateReady(cliente, items.length);
   } catch (err) {
     console.error('Error al generar plantilla:', err);
     toast('Error: ' + (err.message || 'desconocido'), 'err');
