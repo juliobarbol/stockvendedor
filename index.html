@@ -2550,7 +2550,49 @@ function confirmClientName() {
   const list = activeChip?.dataset.list || state.activeList || 'act';
 
   closeClientNameOverlay();
-  setTimeout(() => _doGenerateTemplate(cliente, list), 50);
+  // Llamada DIRECTA (sin setTimeout): así la generación corre dentro del
+  // gesto del usuario y navigator.share() puede abrir el menú de compartir.
+  _doGenerateTemplate(cliente, list);
+}
+
+// ── Compartir o descargar el Excel ──
+// Construye el .xlsx en memoria y abre el menú nativo de compartir del
+// teléfono (WhatsApp, etc.) con el archivo ADJUNTO. Si el navegador no
+// soporta compartir archivos, lo descarga como antes.
+// IMPORTANTE: debe invocarse desde un gesto del usuario (toque), por eso la
+// generación se llama directo (sin setTimeout) desde confirmClientName().
+function _downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = fileName;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
+}
+function _shareOrDownloadXlsx(wb, fileName, shareText, okMsg) {
+  let buf;
+  try { buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }); }
+  catch (e) { XLSX.writeFile(wb, fileName); toast(okMsg, 'ok'); return; }
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+  let file = null;
+  try { file = new File([blob], fileName, { type: blob.type }); } catch (e) { file = null; }
+
+  const puedeCompartir = !!(file && navigator.share && navigator.canShare && navigator.canShare({ files: [file] }));
+  if (puedeCompartir) {
+    navigator.share({ files: [file], title: fileName, text: shareText })
+      .then(() => toast('Plantilla compartida ✓', 'ok'))
+      .catch(err => {
+        if (err && err.name === 'AbortError') return;   // el vendedor cerró el menú
+        _downloadBlob(blob, fileName);
+        toast('No se pudo compartir; la descargué' + (err && err.name ? ' (' + err.name + ')' : ''), 'err');
+      });
+  } else {
+    _downloadBlob(blob, fileName);
+    const motivo = !navigator.share ? 'este navegador no comparte archivos'
+                 : !navigator.canShare ? 'sin canShare'
+                 : 'el formato no se puede compartir acá';
+    toast('Plantilla descargada (' + motivo + ')', 'ok');
+  }
 }
 
 // Generación real de la plantilla (se invoca con cliente + lista ya validados)
@@ -2672,9 +2714,9 @@ function _doGenerateTemplate(cliente, list) {
     // Filename: Plantilla_VIP_JUL_Cliente_2026-05-18.xlsx
     const safeClient = cliente.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30);
     const fileName = `Plantilla_${listName}_${state.user.code}_${safeClient}_${meta.date}.xlsx`;
-    XLSX.writeFile(wb, fileName);
-
-    toast(`Plantilla para "${cliente}" generada — ${items.length} productos ✓`, 'ok');
+    const shareText = `Plantilla de pedido para ${cliente} — Lista ${listName}. Completá la columna CANTIDAD y devolvé el archivo. (${state.user.name})`;
+    const okMsg = `Plantilla para "${cliente}" generada — ${items.length} productos ✓`;
+    _shareOrDownloadXlsx(wb, fileName, shareText, okMsg);
   } catch (err) {
     console.error('Error al generar plantilla:', err);
     toast('Error: ' + (err.message || 'desconocido'), 'err');
