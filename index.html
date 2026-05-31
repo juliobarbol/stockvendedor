@@ -2609,11 +2609,10 @@ function _closeTemplateReady() {
 // pesado antes (el archivo ya está armado) → gesto válido garantizado.
 function shareTemplateNow() {
   if (!_pendingTpl || !_pendingTpl.file) { _closeTemplateReady(); return; }
-  navigator.share({
-    files: [_pendingTpl.file],
-    title: _pendingTpl.fileName,
-    text: `Plantilla de pedido para ${_pendingTpl.cliente} — Lista ${_pendingTpl.listName}. Completá la columna CANTIDAD y devolvé el archivo.`,
-  })
+  // Compartir SOLO el archivo (sin title/text): algunos dispositivos soportan
+  // compartir el archivo solo, pero rechazan (NotAllowedError) si se agrega
+  // texto/título. Esto coincide con lo que validó canShare({ files }).
+  navigator.share({ files: [_pendingTpl.file] })
     .then(() => { _closeTemplateReady(); toast('Plantilla compartida ✓', 'ok'); })
     .catch(err => {
       if (err && err.name === 'AbortError') return;   // el vendedor cerró el menú
