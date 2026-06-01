@@ -2387,9 +2387,22 @@ if (document.readyState === 'loading') {
 // Vaciar la cola de pedidos al recuperar la conexión o al volver la app al
 // frente (antes solo se intentaba al abrir la app). El mutex de
 // flushOrderQueue evita envíos dobles si varios eventos coinciden. — v6.6
-window.addEventListener('online', () => { flushOrderQueue(); });
+//
+// Además, traemos el último catálogo (red de seguridad): si la central
+// publicó stock nuevo mientras la app estaba en segundo plano, el evento de
+// Realtime pudo perderse (el websocket se suspende). Al volver al frente lo
+// re-sincronizamos. Con throttle de 15s para no descargar de más si el
+// usuario alterna apps seguido.
+let _lastAutoPull = 0;
+function _maybeAutoPull() {
+  const now = Date.now();
+  if (now - _lastAutoPull < 15000) return;
+  _lastAutoPull = now;
+  if (typeof pullCatalog === 'function') pullCatalog({ auto: true });
+}
+window.addEventListener('online', () => { flushOrderQueue(); _maybeAutoPull(); });
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') flushOrderQueue();
+  if (document.visibilityState === 'visible') { flushOrderQueue(); _maybeAutoPull(); }
 });
 
 // ════════════════════════════════════════════════════════════════════
