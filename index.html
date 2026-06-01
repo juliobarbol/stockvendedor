@@ -1005,9 +1005,11 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .sb-config { display: flex; flex-direction: column; gap: .5rem; margin-top: .25rem; }
 .sb-config input {
   width: 100%; padding: .6rem .7rem; font-size: .85rem;
-  border: 1px solid var(--border, #d1d5db); border-radius: 10px;
-  background: var(--card, #fff); color: var(--text, #111);
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--surface2); color: var(--text);
+  min-height: var(--tap);
 }
+.sb-config input:focus { outline: none; border-color: var(--accent); }
 .sb-btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
 .sb-status {
   font-size: .75rem; color: var(--muted, #6b7280); min-height: 1em;
@@ -3768,10 +3770,10 @@ function renderHomeTab() {
   if (stockInfo) {
     if (state.stock.length) {
       stockInfo.innerHTML = `✓ ${state.stock.length} productos · actualizado ${fmtDate(state.stockUpdatedAt)}`;
-      stockInfo.className = 'home-info-ok';
+      stockInfo.className = 'home-info home-info-ok';
     } else {
       stockInfo.innerHTML = 'Sin stock cargado. Importá un archivo de central.';
-      stockInfo.className = 'home-info-empty';
+      stockInfo.className = 'home-info home-info-empty';
     }
   }
 
@@ -3786,10 +3788,10 @@ function renderHomeTab() {
     const total = a + d + v;
     if (total > 0) {
       pricesInfo.innerHTML = `✓ Lista 7: ${a} · Distribuidor: ${d} · VIP: ${v}`;
-      pricesInfo.className = 'home-info-ok';
+      pricesInfo.className = 'home-info home-info-ok';
     } else {
       pricesInfo.innerHTML = 'Sin precios cargados.';
-      pricesInfo.className = 'home-info-empty';
+      pricesInfo.className = 'home-info home-info-empty';
     }
   }
 }
