@@ -58,10 +58,10 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .scroll-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 1rem; }
 
 /* HERO */
-.home-hero { padding: 2rem 1rem 1rem; text-align: center; }
+.home-hero { padding: 1.25rem 1rem .75rem; text-align: center; }
 .hero-title {
   font-family: 'Syne', sans-serif;
-  font-weight: 800; font-size: 2.4rem;
+  font-weight: 800; font-size: 1.7rem;
   color: var(--accent); letter-spacing: -0.02em;
 }
 .hero-sub { color: var(--muted); margin-top: .35rem; font-size: .78rem; }
@@ -116,6 +116,10 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   cursor: pointer; transition: opacity .15s;
 }
 .btn-save-config:active { opacity: .8; }
+.btn-save-config.btn-ghost {
+  background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border);
+}
 
 .btn-import {
   background: var(--surface);
@@ -284,7 +288,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .price-none { color: var(--muted); font-weight: 700; font-size: .8rem; }
 .stock-qty { display: flex; flex-direction: column; align-items: flex-end; }
 .stock-qty-val {
-  font-family: 'Syne', sans-serif;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
   font-size: 1.15rem; font-weight: 700;
   color: var(--text);
   line-height: 1;
@@ -1078,7 +1082,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
         <input type="text" id="sbNs" placeholder="ID de tienda (default)" autocomplete="off">
         <div class="sb-btn-row">
           <button class="btn-save-config" onclick="scSaveConfigFromUI()">💾 Guardar</button>
-          <button class="btn-save-config" onclick="scTestConnection()">🔌 Probar</button>
+          <button class="btn-save-config btn-ghost" onclick="scTestConnection()">🔌 Probar</button>
         </div>
         <button class="btn-import" onclick="pullCatalog()" style="width:100%;justify-content:center;cursor:pointer">
           <span>☁⬇</span>
