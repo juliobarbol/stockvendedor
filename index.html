@@ -1920,6 +1920,26 @@ function applyVendorData(data, opts = {}) {
     ? new Date(data._exportedAt).toLocaleDateString('es-AR')
     : 'fecha desconocida';
 
+  // (V-M2) Salvaguarda para el modo automático (Realtime, sin confirmación):
+  // NO reemplazar el stock si el catálogo entrante es degenerado — vacío, o
+  // una caída drástica respecto del que el vendedor ya tiene. Así, si la
+  // central publica un catálogo a medio armar (p. ej. durante un "Resetear
+  // stock"), no le borra el stock visible al vendedor sin que se entere.
+  // El vendedor puede sincronizar a mano (☁⬇) para revisar los números y
+  // aceptar el cambio si efectivamente es correcto (ese camino sí confirma).
+  if (!askConfirm) {
+    const actual = Array.isArray(state.stock) ? state.stock.length : 0;
+    const caidaDrastica = actual >= 20 && stockCount < actual * 0.5;
+    if (stockCount === 0 || caidaDrastica) {
+      toast('La central publicó un catálogo con muchos menos productos que el actual. ' +
+            'No se aplicó automáticamente por seguridad: revisá y sincronizá a mano (☁⬇) si es correcto.', 'err');
+      if (typeof scStatus === 'function') {
+        scStatus('Catálogo nuevo NO aplicado (caída inusual de productos). Sincronizá a mano para revisar.', '');
+      }
+      return false;
+    }
+  }
+
   if (askConfirm) {
     const origen = opts.sourceLabel === 'la nube' ? ' (desde la nube)' : '';
     let msg = `¿Importar datos del ${fecha}${origen}?\n\n` +
