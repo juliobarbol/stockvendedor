@@ -10,7 +10,7 @@
 // versión nueva invalida la anterior y los usuarios reciben la última.
 // ════════════════════════════════════════════════════════════════════
 
-const CACHE = 'stockvendedor-20260601-232623';
+const CACHE = 'stockvendedor-20260602-225153';
 
 // Recursos propios (mismo origen) — se precachean al instalar.
 const PRECACHE = [

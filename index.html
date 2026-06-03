@@ -1535,7 +1535,7 @@ function loadStock() {
   try {
     const p = JSON.parse(localStorage.getItem('vendor_stock') || 'null');
     if (!p) return;
-    const raw = p.stock || [];
+    const raw = Array.isArray(p.stock) ? p.stock : []; // (V-B1) defensivo
 
     let migrated = 0;
     state.stock = raw
@@ -1571,7 +1571,8 @@ function loadPrices() {
     const p = JSON.parse(localStorage.getItem('vendor_prices') || 'null');
     if (!p) return;
 
-    const raw = p.prices || {};
+    const raw = (p.prices && typeof p.prices === 'object' && !Array.isArray(p.prices))
+      ? p.prices : {}; // (V-B1) defensivo: precios siempre es un objeto-mapa
 
     // 🆕 v6.4 — Detectar formato:
     //   Viejo (plano):    { key1: {label,marca,rubro,price}, key2: {...}, ... }
@@ -1620,7 +1621,10 @@ function saveOrders() {
 }
 function loadOrders() {
   try {
-    state.orders = JSON.parse(localStorage.getItem('vendor_orders') || '[]');
+    const parsed = JSON.parse(localStorage.getItem('vendor_orders') || '[]');
+    // (V-B1) Si la key quedó corrupta y no parsea a un array, no dejar que
+    // state.orders sea un valor inválido (rompería la pestaña Historial).
+    state.orders = Array.isArray(parsed) ? parsed : [];
   } catch (e) { state.orders = []; }
 }
 
@@ -2247,7 +2251,10 @@ async function pullCatalog(opts = {}) {
 // ════════════════════════════════════════════════════════════════════
 
 function _loadOrderQueue() {
-  try { return JSON.parse(localStorage.getItem('sb_order_queue') || '[]'); }
+  try {
+    const parsed = JSON.parse(localStorage.getItem('sb_order_queue') || '[]');
+    return Array.isArray(parsed) ? parsed : []; // (V-B1) defensivo
+  }
   catch (e) { return []; }
 }
 function _saveOrderQueue(q) {
