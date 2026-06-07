@@ -1,0 +1,39 @@
+name: Stamp service worker cache version
+
+# Corre build.py en cada push a main para estampar la versión del cache en
+# sw.js. Si el sw.js no venía estampado (alguien subió por la web o se olvidó
+# de correr build.py), lo commitea de vuelta. Así los usuarios siempre reciben
+# la última versión de la PWA sin depender de un bump manual.
+#
+# Nota: el push de este workflow usa GITHUB_TOKEN, que NO dispara otra corrida
+# (GitHub no reencadena workflows por commits del token), así que no hay loop.
+# El guard [skip stamp] es defensa extra.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  stamp:
+    if: ${{ !contains(github.event.head_commit.message, '[skip stamp]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Estampar versión del cache
+        run: python3 build.py
+
+      - name: Commit si cambió
+        run: |
+          if git diff --quiet sw.js; then
+            echo "sw.js ya estaba estampado; nada que commitear."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add sw.js
+          git commit -m "chore: estampar versión del cache del SW [skip stamp]"
+          git push origin HEAD:main

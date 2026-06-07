@@ -168,3 +168,22 @@ Dos canales equivalentes, según haya nube o no:
 - Todo lo de Supabase es opt-in: el flujo de archivos Excel/JSON debe seguir
   funcionando aunque no haya nube (ver comentarios "PARA EL PROGRAMADOR QUE
   AGREGUE BACKEND" en `IMPORT.JS`).
+
+## Deploy y versión del cache (PWA)
+
+- Se sirve como assets estáticos en Cloudflare desde el repo. `.assetsignore`
+  excluye `wrangler.jsonc`, `.assetsignore` y `README.md` (ojo: el readme real
+  se llama `READE.md`, así que hoy no queda excluido — detalle menor).
+- El service worker (`sw.js`) sirve el HTML **network-first** (las
+  actualizaciones del `index.html` llegan solas) y el resto **cache-first**.
+- La versión del cache (`const CACHE` en `sw.js`) **debe cambiar en cada
+  release** para que el SW se actualice y los usuarios reciban lo nuevo. Lo
+  estampa **`build.py`** (`CACHE = '<name>-<timestamp UTC>'`, name de
+  `wrangler.jsonc`).
+- `build.py` lo corre solo el workflow **`.github/workflows/stamp-sw.yml`** en
+  cada push a `main`; si el `sw.js` no venía estampado, lo commitea de vuelta.
+  Es la red de seguridad: **no hace falta bump manual**. Igual podés correrlo a
+  mano con `python build.py`.
+- Si algún día se parte el `index.html` en archivos `.js` externos, ojo: caen
+  en la rama cache-first del SW → hay que cache-bustear (`?v=`) o pasarlos a
+  network-first para no servir versiones viejas.

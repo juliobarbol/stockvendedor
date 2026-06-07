@@ -6,11 +6,13 @@
 // (son dinámicas: stock, pedidos, central compartida) — esas van siempre
 // a la red para no servir datos viejos.
 //
-// La versión del cache la estampa build.py en cada compilación, así cada
-// versión nueva invalida la anterior y los usuarios reciben la última.
+// La versión del cache (CACHE) la estampa build.py — lo corre el workflow
+// .github/workflows/stamp-sw.yml en cada push a main (o a mano:
+// `python build.py`). Así cada release invalida el cache anterior y los
+// usuarios reciben la última versión sin bump manual.
 // ════════════════════════════════════════════════════════════════════
 
-const CACHE = 'stockvendedor-20260602-225153';
+const CACHE = 'stockvendedor-20260607-213426';
 
 // Recursos propios (mismo origen) — se precachean al instalar.
 const PRECACHE = [
