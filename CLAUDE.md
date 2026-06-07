@@ -28,20 +28,52 @@ repo (`juliobarbol/stockmerger`).
 - Dependencias externas por CDN: librería de Supabase (jsdelivr), `xlsx`
   (SheetJS), fuentes de Google.
 
-### Módulos internos
+## ⚠️ Trabajar sin quemar tokens — LEER PRIMERO
 
-El JS está organizado en "módulos" marcados con banners `// XXX.JS — ...`:
+`index.html` pesa **~172 KB / ~4.540 líneas** (≈45k tokens). **Leerlo entero
+gasta mucho contexto innecesariamente.** Pero está limpio y modularizado:
+líneas cortas, sin minificados ni base64, banners `// XXX.JS`. La **lectura por
+rangos de línea es exacta y barata**. Reglas:
 
-| Módulo | Rol |
+1. **NUNCA** hagas `Read` del archivo completo (sin `offset`/`limit`). Tampoco
+   `cat`/`sed` de todo el archivo.
+2. Para localizar algo: `Grep -n` del símbolo/función/string → línea exacta →
+   `Read` con `offset`/`limit` solo ese tramo (±30 líneas).
+3. Para saltar a un módulo: usá la columna **Líneas** de abajo y `Read` ese
+   rango directamente.
+4. Para **editar**: `Grep` el `old_string` único → `Read` solo esa franja →
+   `Edit`. No vuelvas a leer el archivo después de editar.
+5. **CSS (`<style>` 19–1034)** y **HTML/markup (1035–1302)** casi nunca hacen
+   falta para lógica — no los leas salvo trabajo de estilos o maquetado.
+6. Contrato compartido con StockMerger: `Grep` el símbolo en **ambos** repos en
+   vez de abrir los dos `index.html`.
+
+### Mapa de navegación (rangos de línea)
+
+| Región | Líneas |
 |---|---|
-| `STATE.JS` | Estado global (`state`) + persistencia en localStorage. |
-| `UTILS.JS` | Utilidades compartidas (normalización de claves `_key`, etc.). |
-| `IMPORT.JS` | Importar el catálogo enviado por la central: `applyVendorData()`. |
-| `SUPABASE.JS` | Sincronización **opcional** con la nube: bajar catálogo, subir pedidos. |
-| `REALTIME.JS` | Supabase Realtime: escucha cambios en `catalog`. |
-| `TEMPLATE.JS` | Plantilla Excel para clientes. |
-| `ORDERS.JS` | Armado y gestión de pedidos + envío (push) con cola/idempotencia. |
-| `UI.JS` | Navegación entre pestañas y render de cada vista. |
+| `<head>` + scripts CDN | 1–18 |
+| **CSS** (`<style>`) | 19–1034 |
+| **HTML / markup** (body, pestañas) | 1035–1302 |
+| **JS principal** (`<script>`) | 1313–4539 |
+
+### Módulos internos (dentro del JS principal)
+
+Cada módulo arranca con un banner `// XXX.JS — ...`. Saltá directo al rango:
+
+| Módulo | Líneas | Rol |
+|---|---|---|
+| `STATE.JS` | 1315–1665 | Estado global (`state`) + persistencia en localStorage. |
+| `UTILS.JS` | 1666–1758 | Utilidades compartidas (normalización de claves `_key`, etc.). |
+| `IMPORT.JS` | 1759–2009 | Importar el catálogo enviado por la central: `applyVendorData()`. |
+| `SUPABASE.JS` | 2010–2435 | Sync **opcional** con la nube: bajar catálogo, subir pedidos. |
+| `REALTIME.JS` | 2436–2493 | Supabase Realtime: escucha cambios en `catalog`. |
+| `TEMPLATE.JS` | 2494–3010 | Plantilla Excel para clientes. |
+| `ORDERS.JS` | 3011–3778 | Armado y gestión de pedidos + envío (push) con cola/idempotencia. |
+| `UI.JS` | 3779–4538 | Navegación entre pestañas y render de cada vista. |
+
+> Los rangos se mueven al editar. Si algo no cuadra, reubicá con
+> `Grep -n "^// NOMBRE.JS"` y leé el banner.
 
 ### Pestañas de la UI
 
