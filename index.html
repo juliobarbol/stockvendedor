@@ -15,6 +15,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!-- TODO(auditoría A5): pinear supabase-js a versión exacta (@2.x.y) y agregar
+     integrity+crossorigin a ambos scripts. Hacerlo con red: resolver la versión
+     en https://www.jsdelivr.com/package/npm/@supabase/supabase-js y generar SRI
+     en https://www.srihash.org/ — y probar la app antes de publicar. -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 /* RESET + VARIABLES */
@@ -1625,7 +1629,14 @@ function loadOrders() {
     // (V-B1) Si la key quedó corrupta y no parsea a un array, no dejar que
     // state.orders sea un valor inválido (rompería la pestaña Historial).
     state.orders = Array.isArray(parsed) ? parsed : [];
-  } catch (e) { state.orders = []; }
+  } catch (e) {
+    // Antes esto tragaba la corrupción en silencio y el historial
+    // "desaparecía" sin explicación. Preservamos el crudo para rescate
+    // manual y avisamos por consola (toast todavía no está disponible acá).
+    console.warn('Historial de pedidos corrupto — se preserva en vendor_orders_corrupt:', e.message);
+    try { localStorage.setItem('vendor_orders_corrupt', localStorage.getItem('vendor_orders') || ''); } catch (e2) {}
+    state.orders = [];
+  }
 }
 
 // Pedido en construcción (borrador) — se persiste para que el vendedor
@@ -1755,6 +1766,25 @@ function escHtml(s) {
   }[c]));
 }
 
+// Escapa un valor para incrustarlo como string JS ('…') dentro de un atributo
+// HTML entre comillas dobles, p. ej. onclick="fn('${escJsAttr(x)}')".
+// Dos capas: primero escape de JS (backslash, comilla, saltos de línea) y
+// después escape de HTML — el parser decodifica las entidades del atributo
+// ANTES de ejecutar el JS, así que ambas capas son necesarias. Escapar solo
+// la comilla simple (como se hacía antes) deja pasar `\`; y usar escHtml
+// tampoco sirve en este contexto: su &#39; se decodifica de vuelta a comilla.
+// (Misma función en StockMerger — mantener en espejo.)
+function escJsAttr(s) {
+  return String(s ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\r?\n/g, '\\n')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 // ════════════════════════════════════════════════════════════════════
 // IMPORT.JS — Importar stock y listas de precios enviadas por la central
 // ════════════════════════════════════════════════════════════════════
@@ -1794,10 +1824,13 @@ function escHtml(s) {
 // Normaliza una sublista de precios al shape interno.
 // Devuelve { normalized, valid, descartados }.
 function _normalizePricesList(raw) {
-  const out = {};
+  // Object.create(null): las keys vienen de JSON remoto — sin prototipo no
+  // hay forma de que una key '__proto__'/'constructor' pise la cadena.
+  const out = Object.create(null);
   let valid = 0, descartados = 0;
   if (!raw || typeof raw !== 'object') return { normalized: out, valid, descartados };
-  for (const k in raw) {
+  for (const k of Object.keys(raw)) {
+    if (k === '__proto__' || k === 'constructor' || k === 'prototype') { descartados++; continue; }
     const p = raw[k];
     if (!p || typeof p !== 'object') { descartados++; continue; }
     const price = parseFloat(p.price);
@@ -2196,10 +2229,12 @@ async function pullCatalog(opts = {}) {
       return;
     }
     if (!data || !data.payload) {
-      if (!auto) {
-        toast(`La central todavía no publicó datos para la tienda "${c.ns}".`, 'err');
-        scStatus(`Sin catálogo publicado para "${c.ns}".`, 'err');
-      }
+      // También en modo auto: si el ns está mal tipeado, este era el ÚNICO
+      // síntoma y quedaba mudo — la app parecía "no sincronizar nunca".
+      // scStatus es la línea de estado de Home (no molesta como un toast).
+      console.warn(`pullCatalog: sin catálogo publicado para ns="${c.ns}" (¿ns mal escrito?)`);
+      scStatus(`Sin catálogo publicado para "${c.ns}". Verificá el ID de tienda.`, 'err');
+      if (!auto) toast(`La central todavía no publicó datos para la tienda "${c.ns}".`, 'err');
       return;
     }
 
@@ -2431,6 +2466,12 @@ window.addEventListener('online', () => { flushOrderQueue(); _maybeAutoPull(); }
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') { flushOrderQueue(); _maybeAutoPull(); }
 });
+// Reintento periódico: 'online'/'visibilitychange' no cubren el caso "la app
+// quedó abierta en primer plano y la red volvió sola" (wifi inestable). Si la
+// cola está vacía o no hay nube configurada, flushOrderQueue() sale al toque.
+setInterval(() => {
+  if (document.visibilityState === 'visible') flushOrderQueue();
+}, 60000);
 
 // ════════════════════════════════════════════════════════════════════
 // REALTIME.JS — StockVendedor — actualización en tiempo real (Supabase Realtime)
@@ -3924,7 +3965,7 @@ function renderStockTab() {
     const stockLabel = disponible === 0 ? 'SIN STOCK'
                      : disponible <= LOW_STOCK_THRESHOLD ? 'BAJO'
                      : 'OK';
-    const safeKey = s._key.replace(/'/g, "\\'");
+    const safeKey = escJsAttr(s._key);
     // Permitimos pedir si hay stock Y hay precio en AL MENOS una lista.
     // Si la activa no tiene precio, addToOrder va a avisar al tocar.
     const canOrder = hasAnywhere && disponible > 0;
@@ -4070,7 +4111,7 @@ function renderOrderSearchResults(query) {
 
   container.innerHTML = results.map(s => {
     const qty = s.qty || 0;
-    const safeKey = s._key.replace(/'/g, "\\'");
+    const safeKey = escJsAttr(s._key);
     const price = getProductPrice(s._key);
     // Si la lista activa no tiene precio para este producto pero searchProductsForOrder
     // lo devolvió (porque tiene precio en alguna otra lista), avisamos visualmente
@@ -4170,7 +4211,7 @@ function renderOrderTab() {
   }
 
   container.innerHTML = items.map(it => {
-    const safeKey = it.key.replace(/'/g, "\\'");
+    const safeKey = escJsAttr(it.key);
     const availBadge = _availabilityBadge(it.key, it.qty);
     // Si el item no tiene precio en la lista activa, lo marcamos rojo
     // con un mensaje claro. El subtotal queda en 0 hasta que el vendedor
@@ -4262,7 +4303,7 @@ function updateOrderNotes() {
 // lentas mientras se descarga el Excel.
 let _sendingOrder = false;
 
-function handleSendOrder() {
+async function handleSendOrder() {
   if (_sendingOrder) return; // ya en curso, ignorar
   _sendingOrder = true;
 
@@ -4289,9 +4330,6 @@ function handleSendOrder() {
     }
     // Por defecto: Excel para mandar directo a la central
     exportOrderAsExcel(order);
-    // Además, si la nube está configurada, subir el pedido (con cola offline).
-    // No interrumpe el flujo del Excel — es un extra.
-    if (typeof pushOrderSafe === 'function') pushOrderSafe(order);
     // Limpiar el buscador — el pedido se envió y ahora arranca uno nuevo
     const searchInput = document.getElementById('orderSearchInput');
     if (searchInput) searchInput.value = '';
@@ -4300,6 +4338,15 @@ function handleSendOrder() {
     renderOrderTab();
     updateOrderBadge();
     if (typeof renderOrdersTab === 'function') renderOrdersTab();
+    // Además, si la nube está configurada, subir el pedido (con cola offline).
+    // No interrumpe el flujo del Excel — es un extra. AWAIT a propósito: el
+    // mutex _sendingOrder queda tomado hasta que el push termine (antes se
+    // liberaba con el push en vuelo → doble disparo posible) y un rechazo
+    // inesperado no queda como unhandled rejection.
+    if (typeof pushOrderSafe === 'function') {
+      try { await pushOrderSafe(order); }
+      catch (e) { console.warn('pushOrderSafe:', e); }
+    }
   } finally {
     // El botón vuelve a la normalidad. Como sendOrder() limpia currentOrder,
     // renderOrderTab() ya lo dejó disabled (porque items.length === 0).

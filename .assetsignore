@@ -1,3 +1,4 @@
 wrangler.jsonc
 .assetsignore
 README.md
+schema.sql
