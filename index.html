@@ -259,6 +259,15 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   font-size: .68rem; color: var(--muted);
 }
 
+.sort-row { display: flex; align-items: center; gap: .5rem; padding: 0 1rem .4rem; }
+.sort-label { font-size: .68rem; color: var(--muted); white-space: nowrap; }
+.sort-row select {
+  flex: 1; max-width: 250px;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: .3rem .5rem; font-size: .72rem; font-family: inherit;
+}
+
 /* STOCK CARDS */
 .stock-results { display: flex; flex-direction: column; height: 100%; }
 #stockList { padding: 0 1rem 1rem; }
@@ -1120,6 +1129,18 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
       <div class="chip" onclick="setStockFilter('available',this)">Con stock</div>
       <div class="chip" onclick="setStockFilter('lowstock',this)">⚠️ Bajo</div>
     </div>
+    <div class="sort-row">
+      <span class="sort-label">Ordenar:</span>
+      <select id="stockSortSelect" onchange="setStockSort(this.value)">
+        <option value="product">Producto A→Z</option>
+        <option value="marca">Marca A→Z</option>
+        <option value="rubro">Rubro A→Z</option>
+        <option value="price_asc">Precio: menor a mayor</option>
+        <option value="price_desc">Precio: mayor a menor</option>
+        <option value="qty_desc">Más stock primero</option>
+        <option value="qty_asc">Menos stock primero</option>
+      </select>
+    </div>
     <div class="result-count" id="stockCount">0 productos</div>
     <div class="scroll-body">
       <div id="stockList"></div>
@@ -1398,6 +1419,9 @@ const state = {
   // Filtro UI
   stockFilter: 'all',  // 'all' | 'available' | 'lowstock'
   stockSearch: '',
+  // Orden del catálogo: 'product' | 'marca' | 'rubro' |
+  // 'price_asc' | 'price_desc' | 'qty_desc' | 'qty_asc'
+  stockSort: 'product',
 };
 
 // ══ PERSISTENCIA ══
@@ -2735,6 +2759,10 @@ function _doGenerateTemplate(cliente, list) {
       { s: { r: 1, c: 0 }, e: { r: 1, c: 7 } },
     ];
 
+    // Autofiltro sobre la cabecera (fila 7) hasta la última fila de productos:
+    // el cliente puede filtrar/ordenar por marca, rubro, etc. al abrir el Excel.
+    ws['!autofilter'] = { ref: `A7:H${7 + items.length}` };
+
     XLSX.utils.book_append_sheet(wb, ws, 'Pedido');
 
     // Crear una hoja oculta con el código identificador
@@ -3021,6 +3049,9 @@ function exportOrderAsExcel(order) {
       { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } },
       { s: { r: 1, c: 0 }, e: { r: 1, c: 6 } },
     ];
+
+    // Autofiltro sobre la cabecera (fila 4) hasta la última fila de productos
+    ws['!autofilter'] = { ref: `A4:G${4 + items.length}` };
 
     XLSX.utils.book_append_sheet(wb, ws, 'Pedido');
 
@@ -3916,7 +3947,7 @@ function renderStockTab() {
     return;
   }
 
-  let data = state.stock;
+  let data = [...state.stock];
 
   // Filtro
   if (state.stockFilter === 'available')     data = data.filter(s => s.qty > 0);
@@ -3932,7 +3963,10 @@ function renderStockTab() {
     );
   }
 
-  data.sort((a, b) => (a.product || '').localeCompare(b.product || '', 'es'));
+  sortStockData(data);
+
+  const sortSel = document.getElementById('stockSortSelect');
+  if (sortSel) sortSel.value = state.stockSort || 'product';
 
   document.getElementById('stockCount').textContent =
     data.length + ' producto' + (data.length !== 1 ? 's' : '');
@@ -3986,6 +4020,36 @@ function renderStockTab() {
       </div>
     </div>`;
   }).join('');
+}
+
+// Ordena el catálogo según state.stockSort. El precio se mira en la lista
+// activa; los productos sin precio van al final. Empates: por nombre A→Z.
+function sortStockData(data) {
+  const s = state.stockSort || 'product';
+  const byName = (a, b) => (a.product || '').localeCompare(b.product || '', 'es');
+  if (s === 'marca' || s === 'rubro') {
+    data.sort((a, b) =>
+      (a[s] || 'zzz').localeCompare(b[s] || 'zzz', 'es') || byName(a, b));
+  } else if (s === 'qty_desc' || s === 'qty_asc') {
+    const dir = s === 'qty_asc' ? 1 : -1;
+    data.sort((a, b) => ((a.qty || 0) - (b.qty || 0)) * dir || byName(a, b));
+  } else if (s === 'price_asc' || s === 'price_desc') {
+    const dir = s === 'price_desc' ? -1 : 1;
+    data.sort((a, b) => {
+      const pa = getProductPrice(a._key), pb = getProductPrice(b._key);
+      if (pa === null && pb === null) return byName(a, b);
+      if (pa === null) return 1;
+      if (pb === null) return -1;
+      return (pa - pb) * dir || byName(a, b);
+    });
+  } else {
+    data.sort(byName);
+  }
+}
+
+function setStockSort(val) {
+  state.stockSort = val;
+  renderStockTab();
 }
 
 function setStockFilter(val, el) {
