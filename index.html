@@ -268,6 +268,17 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   padding: .3rem .5rem; font-size: .72rem; font-family: inherit;
 }
 
+/* ── Grupos plegables del catálogo (por marca/rubro) ── */
+.group-header {
+  display: flex; align-items: center; gap: .55rem;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 10px; padding: .55rem .8rem; margin: .55rem 0 .35rem;
+  cursor: pointer; user-select: none; min-height: var(--tap);
+}
+.group-header .group-arrow { color: var(--accent); font-size: .8rem; width: 1rem; text-align: center; }
+.group-header .group-name { flex: 1; font-weight: 700; font-size: .82rem; }
+.group-header .group-count { font-size: .65rem; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 99px; padding: .15rem .5rem; white-space: nowrap; }
+
 /* ── CLIENTES (libreta del vendedor) ── */
 .clients-topbar { padding: .25rem 1rem .5rem; }
 .btn-new-client {
@@ -1206,6 +1217,11 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
         <option value="price_desc">Precio: mayor a menor</option>
         <option value="qty_desc">Más stock primero</option>
         <option value="qty_asc">Menos stock primero</option>
+      </select>
+      <select id="stockGroupSelect" onchange="setStockGroup(this.value)">
+        <option value="">Sin plegar</option>
+        <option value="marca">📂 Por marca</option>
+        <option value="rubro">📂 Por rubro</option>
       </select>
     </div>
     <div class="result-count" id="stockCount">0 productos</div>
@@ -4530,6 +4546,8 @@ function renderStockTab() {
 
   const sortSel = document.getElementById('stockSortSelect');
   if (sortSel) sortSel.value = state.stockSort || 'product';
+  const groupSel = document.getElementById('stockGroupSelect');
+  if (groupSel) groupSel.value = _stockGroupBy;
 
   document.getElementById('stockCount').textContent =
     data.length + ' producto' + (data.length !== 1 ? 's' : '');
@@ -4539,7 +4557,38 @@ function renderStockTab() {
     return;
   }
 
-  container.innerHTML = data.map(s => {
+  // Pliegues por marca/rubro: cada grupo tiene una cabecera tocable que
+  // lo despliega/repliega. Mientras hay búsqueda activa se muestran todos
+  // desplegados (si no, solo se verían cabeceras y parecería sin resultados).
+  if (_stockGroupBy) {
+    const groups = new Map();
+    data.forEach(s => {
+      const g = String(s[_stockGroupBy] || '').trim() || `(sin ${_stockGroupBy})`;
+      if (!groups.has(g)) groups.set(g, []);
+      groups.get(g).push(s);
+    });
+    const sinKey = `(sin ${_stockGroupBy})`;
+    const names = [...groups.keys()].sort((a, b) => {
+      if (a === sinKey) return 1;
+      if (b === sinKey) return -1;
+      return a.localeCompare(b, 'es');
+    });
+    container.innerHTML = names.map(name => {
+      const items = groups.get(name);
+      const open = !!q || _expandedStockGroups.has(name);
+      return `<div class="group-header" onclick="toggleStockGroup('${escJsAttr(name)}')">
+        <span class="group-arrow">${open ? '▾' : '▸'}</span>
+        <span class="group-name">${escHtml(name)}</span>
+        <span class="group-count">${items.length} prod.</span>
+      </div>` + (open ? items.map(buildStockCardHTML).join('') : '');
+    }).join('');
+    return;
+  }
+
+  container.innerHTML = data.map(buildStockCardHTML).join('');
+}
+
+function buildStockCardHTML(s) {
     const price = getProductPrice(s._key);
     // Si la lista activa no tiene precio para este producto, ¿alguna otra sí?
     // Mostramos la situación de manera distinta:
@@ -4582,7 +4631,22 @@ function renderStockTab() {
           : ''}
       </div>
     </div>`;
-  }).join('');
+}
+
+// ── Pliegues del catálogo (estado en memoria, no se persiste) ──
+let _stockGroupBy = '';                 // '' | 'marca' | 'rubro'
+let _expandedStockGroups = new Set();   // nombres de grupos desplegados
+
+function setStockGroup(val) {
+  _stockGroupBy = val || '';
+  _expandedStockGroups = new Set();     // al cambiar el criterio, todo plegado
+  renderStockTab();
+}
+
+function toggleStockGroup(name) {
+  if (_expandedStockGroups.has(name)) _expandedStockGroups.delete(name);
+  else _expandedStockGroups.add(name);
+  renderStockTab();
 }
 
 // Ordena el catálogo según state.stockSort. El precio se mira en la lista
