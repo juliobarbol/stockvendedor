@@ -1814,6 +1814,9 @@ function loadClients() {
     const parsed = JSON.parse(localStorage.getItem('vendor_clients') || '[]');
     state.clients = Array.isArray(parsed) ? parsed : [];
   } catch (e) { state.clients = []; }
+  // _dirty !== false = "todavía no subida a la nube". Cubre también las
+  // fichas creadas antes de que existiera la sincronización con la central.
+  state.clients.forEach(c => { if (c._dirty !== false) c._dirty = true; });
 }
 
 // Pedido en construcción (borrador) — se persiste para que el vendedor
@@ -2612,8 +2615,12 @@ function scInitUI() {
     scStatus('Modo offline: la nube no cargó. La app funciona igual; importá el archivo.', '');
   } else if (scIsConfigured()) {
     scStatus('Nube configurada. Tocá "Sincronizar desde la nube" para traer lo último.', '');
-    // Al arrancar con conexión, intentar vaciar la cola de pedidos pendientes.
-    setTimeout(() => { flushOrderQueue(); }, 1500);
+    // Al arrancar con conexión, intentar vaciar la cola de pedidos pendientes
+    // y subir fichas de clientes que hayan quedado sin sincronizar.
+    setTimeout(() => {
+      flushOrderQueue();
+      if (typeof syncClientsToCloud === 'function') syncClientsToCloud();
+    }, 1500);
   } else {
     scStatus('Nube no configurada (opcional). Pedile a la central la URL y la key.', '');
   }
@@ -2640,6 +2647,7 @@ function _maybeAutoPull() {
   if (now - _lastAutoPull < 15000) return;
   _lastAutoPull = now;
   if (typeof pullCatalog === 'function') pullCatalog({ auto: true });
+  if (typeof syncClientsToCloud === 'function') syncClientsToCloud();
 }
 window.addEventListener('online', () => { flushOrderQueue(); _maybeAutoPull(); });
 document.addEventListener('visibilitychange', () => {
@@ -4188,7 +4196,9 @@ function saveClientEdit() {
   c.list = _clientEditList;
   c.notes = notes;
   c.updatedAt = now;
+  c._dirty = true;        // pendiente de subir a la nube (para la central)
   saveClients();
+  syncClientsToCloud();   // fire & forget — si no hay nube, no hace nada
 
   const fromPicker = _clientFromPicker;
   closeClientEdit();
@@ -4331,6 +4341,51 @@ function _orderClientBoxHTML() {
     </div>`;
   }
   return `<button class="btn-pick-client" onclick="openClientPicker()">👤 Elegir cliente</button>`;
+}
+
+// ── Subida automática de fichas a la nube (para la central) ──
+// Al crear o editar una ficha se sube { ns, client_id, name, list, vendor }
+// a la tabla `clients` de Supabase; la central las baja y las suma a su
+// libreta. Las NOTAS no viajan (son privadas del vendedor). El borrado
+// tampoco viaja: la libreta de la central es de la central.
+// Si no hay nube o falla la conexión, la ficha queda marcada (_dirty) y
+// se reintenta al volver la conexión / traer la app al frente.
+let _syncClientsBusy = false;
+async function syncClientsToCloud() {
+  if (_syncClientsBusy) return;
+  if (typeof scLibReady !== 'function' || !scLibReady()) return;
+  if (typeof scIsConfigured !== 'function' || !scIsConfigured()) return;
+  const dirty = state.clients.filter(c => c._dirty);
+  if (!dirty.length) return;
+  const client = scClient();
+  if (!client) return;
+  const cfg = scGetConfig();
+  _syncClientsBusy = true;
+  try {
+    let subidas = 0;
+    for (const c of dirty) {
+      const { error } = await client.from('clients').upsert({
+        ns:         cfg.ns,
+        client_id:  c.id,
+        name:       c.name,
+        list:       c.list,
+        vendor:     state.user.name || '',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'ns,client_id' });
+      if (error) {
+        // Sin conexión o la tabla no existe todavía — reintentar después
+        console.warn('Ficha no subida (se reintenta):', error.message);
+        break;
+      }
+      c._dirty = false;
+      subidas++;
+    }
+    if (subidas) saveClients();
+  } catch (e) {
+    console.warn('syncClientsToCloud:', e && e.message);
+  } finally {
+    _syncClientsBusy = false;
+  }
 }
 
 // ── Atajo de libreta en el modal de plantilla para clientes ──

@@ -82,6 +82,28 @@ create table if not exists received_orders (
 create unique index if not exists received_orders_ns_id_uq on received_orders (ns, local_id);
 
 -- ════════════════════════════════════════════════════════════════════
+-- clients — fichas de clientes creadas por los vendedores
+--   escribe: StockVendedor (upsert al crear/editar una ficha)
+--   lee:     StockMerger (pull + Realtime) para sumarlas a su libreta
+--   Las notas privadas del vendedor NO viajan (solo nombre/lista/vendedor).
+-- ════════════════════════════════════════════════════════════════════
+create table if not exists clients (
+  ns          text not null default 'default',
+  client_id   text not null,               -- id de la ficha en la app del vendedor
+  name        text not null,
+  list        text not null default 'act', -- 'act' | 'dist' | 'vip'
+  vendor      text,                        -- nombre del vendedor que la cargó
+  updated_at  timestamptz not null default now()
+);
+create unique index if not exists clients_ns_client_uq on clients (ns, client_id);
+
+-- Realtime para avisar a la central al instante (best-effort: si la
+-- publication no existe o ya estaba agregada, se ignora el error).
+do $$ begin
+  alter publication supabase_realtime add table clients;
+exception when others then null; end $$;
+
+-- ════════════════════════════════════════════════════════════════════
 -- Storage: bucket `backups` (snapshots de la Capa 2 de BACKUPS.JS)
 -- Crearlo desde el dashboard (Storage → New bucket → "backups", privado)
 -- con policies de insert/select/delete para el rol anon (o el rol que
@@ -101,6 +123,7 @@ alter table catalog_items      enable row level security;
 alter table rubro_multipliers  enable row level security;
 alter table settings           enable row level security;
 alter table received_orders    enable row level security;
+alter table clients            enable row level security;
 
 do $$ begin
   create policy "catalog_read"   on catalog for select using (true);
@@ -118,6 +141,10 @@ do $$ begin
   create policy "rubro_multipliers_all" on rubro_multipliers for all using (true) with check (true);
   create policy "settings_all"          on settings          for all using (true) with check (true);
   create policy "received_orders_all"   on received_orders   for all using (true) with check (true);
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create policy "clients_all" on clients for all using (true) with check (true);
 exception when duplicate_object then null; end $$;
 
 -- ENDURECIMIENTO RECOMENDADO (fase futura, requiere Supabase Auth):
