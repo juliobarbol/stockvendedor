@@ -14,12 +14,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<!-- TODO(auditoría A5): pinear supabase-js a versión exacta (@2.x.y) y agregar
-     integrity+crossorigin a ambos scripts. Hacerlo con red: resolver la versión
-     en https://www.jsdelivr.com/package/npm/@supabase/supabase-js y generar SRI
-     en https://www.srihash.org/ — y probar la app antes de publicar. -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Al cambiar la versión de un script hay que regenerar su hash SRI
+     (https://www.srihash.org/). Supabase: usar el archivo estático
+     dist/umd/supabase.js — jsdelivr genera los .min.js al vuelo y no
+     sirven para SRI. -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.1/dist/umd/supabase.js" integrity="sha384-EjUdIVmzWliPzdzhxZ9ZoO0etXLKWuUPUftAGxP6qH6Lm4oLwoLaJR0Ba4pIDiDL" crossorigin="anonymous"></script>
 <style>
 /* RESET + VARIABLES */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
