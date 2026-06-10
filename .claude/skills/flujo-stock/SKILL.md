@@ -50,12 +50,23 @@ No hay tests, linters ni servidor local. El control de calidad sos vos:
 1. Verificá que el workflow estampó la versión del cache: `git pull` y
    chequear que `const CACHE` en `sw.js` tenga timestamp nuevo. Si en ~2
    minutos no aparece, corré `python build.py`, commiteá y pusheá.
-2. Decile a Julio qué mirar en la app publicada para confirmar que el cambio
+   **Ahorro de tokens**: si la sesión encadena varios cambios publicados,
+   verificá el estampado UNA SOLA VEZ, después del último merge — no tras
+   cada uno.
+2. Si Julio pide varios cambios en un mensaje, implementalos TODOS y
+   publicalos en una sola tanda (un solo ciclo de commit + merge +
+   verificación), no un ciclo por cambio.
+3. Decile a Julio qué mirar en la app publicada para confirmar que el cambio
    funciona (1 o 2 pasos concretos, ej.: "entrá a la pestaña Pedidos y fijate
    que ahora diga Lista 7"). Es la única prueba real que existe.
 
 ## Cómo hablarle a Julio
 
+- **Reportes CORTOS por defecto** (pedido explícito de Julio para ahorrar
+  tokens): qué cambió en palabras de usuario + 1 o 2 pasos para probarlo.
+  Apuntá a 3–6 líneas en total. Contexto técnico, advertencias largas o
+  listas de detalles SOLO si Julio los pide o si hay un riesgo real que
+  deba conocer.
 - Castellano simple, sin jerga. Nada de "ternario", "refactor", "payload",
   "endpoint", "fast-forward". Si un término técnico es inevitable, explicalo
   con una comparación cotidiana.
@@ -70,7 +81,18 @@ No hay tests, linters ni servidor local. El control de calidad sos vos:
 
 - Formato `vendor_data_v2` (catálogo central → vendedor).
 - Esquema de `orders` (`ns, order_id, vendor, client, payload`).
+- Esquema de `clients` (`ns, client_id, name, list, vendor`) — fichas de
+  clientes vendedor → central. El esquema completo vive en `schema.sql`
+  (idéntico en ambos repos; si se toca, actualizar los dos).
 - Normalización de `_key` (UTILS.JS en ambos repos).
 - Claves internas de listas `act` / `dist` / `vip`: los nombres visibles son
   "Lista 7", "Distribuidor" y "VIP", pero las claves internas NO se renombran
   (romperían los pedidos guardados y la conexión entre las apps).
+
+## Decisiones de producto
+
+Las reglas de negocio que definió Julio (fichas de clientes, lista bloqueada
+por ficha, notas privadas, etc.) están en la sección **"Decisiones de
+producto"** del CLAUDE.md de cada repo. Leelas antes de tocar esas áreas, y
+si Julio cambia alguna, **editá esa sección en ambos repos en el mismo
+cambio** para que no queden reglas viejas que generen confusión.
