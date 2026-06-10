@@ -20,7 +20,7 @@ repo (`juliobarbol/stockmerger`).
 
 ## Forma del proyecto
 
-- **PWA de un solo archivo**: toda la app está en `index.html` (~4.5k líneas,
+- **PWA de un solo archivo**: toda la app está en `index.html` (~5.2k líneas,
   HTML + CSS + JS inline). No hay build step ni bundler.
 - Se sirve como **assets estáticos en Cloudflare** (`wrangler.jsonc`,
   `assets.directory: "."`).
@@ -30,7 +30,7 @@ repo (`juliobarbol/stockmerger`).
 
 ## ⚠️ Trabajar sin quemar tokens — LEER PRIMERO
 
-`index.html` pesa **~172 KB / ~4.540 líneas** (≈45k tokens). **Leerlo entero
+`index.html` pesa **~197 KB / ~5.220 líneas** (≈50k tokens). **Leerlo entero
 gasta mucho contexto innecesariamente.** Pero está limpio y modularizado:
 líneas cortas, sin minificados ni base64, banners `// XXX.JS`. La **lectura por
 rangos de línea es exacta y barata**. Reglas:
@@ -43,7 +43,7 @@ rangos de línea es exacta y barata**. Reglas:
    rango directamente.
 4. Para **editar**: `Grep` el `old_string` único → `Read` solo esa franja →
    `Edit`. No vuelvas a leer el archivo después de editar.
-5. **CSS (`<style>` 19–1034)** y **HTML/markup (1035–1302)** casi nunca hacen
+5. **CSS (`<style>` 19–1114)** y **HTML/markup (1115–1464)** casi nunca hacen
    falta para lógica — no los leas salvo trabajo de estilos o maquetado.
 6. Contrato compartido con StockMerger: `Grep` el símbolo en **ambos** repos en
    vez de abrir los dos `index.html`.
@@ -53,9 +53,10 @@ rangos de línea es exacta y barata**. Reglas:
 | Región | Líneas |
 |---|---|
 | `<head>` + scripts CDN | 1–18 |
-| **CSS** (`<style>`) | 19–1034 |
-| **HTML / markup** (body, pestañas) | 1035–1302 |
-| **JS principal** (`<script>`) | 1313–4539 |
+| **CSS** (`<style>`) | 19–1114 |
+| **HTML / markup** (body, pestañas) | 1115–1464 |
+| Registro del service worker | 1465–1474 |
+| **JS principal** (`<script>`) | 1475–5222 |
 
 ### Módulos internos (dentro del JS principal)
 
@@ -63,22 +64,23 @@ Cada módulo arranca con un banner `// XXX.JS — ...`. Saltá directo al rango:
 
 | Módulo | Líneas | Rol |
 |---|---|---|
-| `STATE.JS` | 1315–1665 | Estado global (`state`) + persistencia en localStorage. |
-| `UTILS.JS` | 1666–1758 | Utilidades compartidas (normalización de claves `_key`, etc.). |
-| `IMPORT.JS` | 1759–2009 | Importar el catálogo enviado por la central: `applyVendorData()`. |
-| `SUPABASE.JS` | 2010–2435 | Sync **opcional** con la nube: bajar catálogo, subir pedidos. |
-| `REALTIME.JS` | 2436–2493 | Supabase Realtime: escucha cambios en `catalog`. |
-| `TEMPLATE.JS` | 2494–3010 | Plantilla Excel para clientes. |
-| `ORDERS.JS` | 3011–3778 | Armado y gestión de pedidos + envío (push) con cola/idempotencia. |
-| `UI.JS` | 3779–4538 | Navegación entre pestañas y render de cada vista. |
+| `STATE.JS` | 1475–1856 | Estado global (`state`) + persistencia en localStorage. Incluye `state.clients` (libreta del vendedor). |
+| `UTILS.JS` | 1857–1968 | Utilidades compartidas (normalización de claves `_key`, etc.). |
+| `IMPORT.JS` | 1969–2222 | Importar el catálogo enviado por la central: `applyVendorData()`. |
+| `SUPABASE.JS` | 2223–2661 | Sync **opcional** con la nube: bajar catálogo, subir pedidos (y disparadores de `syncClientsToCloud`). |
+| `REALTIME.JS` | 2662–2719 | Supabase Realtime: escucha cambios en `catalog`. |
+| `TEMPLATE.JS` | 2720–3267 | Plantilla Excel para clientes (con atajo de libreta y autofiltro). |
+| `ORDERS.JS` | 3268–4059 | Armado y gestión de pedidos + envío (push) con cola/idempotencia. `setActiveList` bloquea la lista si el pedido tiene cliente con ficha. |
+| `CLIENTS.JS` | 4060–4410 | Libreta de clientes del vendedor (pestaña Clientes, picker del pedido) + `syncClientsToCloud()` (subida a la central). |
+| `UI.JS` | 4411–5222 | Navegación entre pestañas y render de cada vista (incl. selector de orden del catálogo). |
 
 > Los rangos se mueven al editar. Si algo no cuadra, reubicá con
 > `Grep -n "^// NOMBRE.JS"` y leé el banner.
 
 ### Pestañas de la UI
 
-`Home`, `Stock` (catálogo), `Order` (armar pedido), `Orders` (pedidos
-enviados).
+`Home`, `Stock` (catálogo), `Clients` (libreta de clientes), `Order` (armar
+pedido), `Orders` (pedidos enviados).
 
 ## Persistencia
 
@@ -159,6 +161,29 @@ Dos canales equivalentes, según haya nube o no:
   productos del `payload` contra su stock y los guarda en `receivedOrders`.
 - **`_key`**: clave normalizada de producto. Es el pegamento para cruzar
   catálogo y pedidos. Debe normalizarse igual en ambas apps (`UTILS.JS`).
+
+## Decisiones de producto (de Julio) — fuente de verdad
+
+> ⚠️ **Mantener al día**: si Julio cambia alguna de estas reglas, hay que
+> EDITAR esta sección en los CLAUDE.md de **ambos repos** en el mismo cambio.
+> Una regla desactualizada acá genera implementaciones contradictorias.
+
+- **Listas de precios**: claves internas `act` / `dist` / `vip` — los nombres
+  visibles son "Lista 7", "Distribuidor" y "VIP". Las claves internas NO se
+  renombran (romperían pedidos guardados y la conexión entre apps).
+- **Fichas de clientes**: cada vendedor tiene SU libreta local (StockVendedor,
+  pestaña Clientes); la central tiene la suya con TODOS los clientes
+  (StockMerger, overlay 👥 Clientes en la pestaña Pedidos).
+- **La lista del pedido la define la ficha del cliente**: al elegir cliente en
+  el pedido, su lista se aplica y los chips quedan bloqueados. Para un pedido
+  puntual con otra lista se EDITA LA FICHA (no se puede pisar desde el pedido).
+- **Notas privadas por lado**: las notas del vendedor no viajan a la central y
+  viceversa. Entre apps solo viajan nombre / lista / vendedor (tabla `clients`).
+- **Sync de fichas vendedor → central** (tabla `clients`): los borrados NO
+  viajan (la libreta de la central es de la central), y si la central editó
+  una ficha (`source: 'central'`), lo que mande un vendedor no la pisa.
+- **Excel exportados**: siempre con autofiltro en la fila de cabecera. El
+  Excel de Stock de la central incluye las 3 listas + precio China.
 
 ## Notas de desarrollo
 
