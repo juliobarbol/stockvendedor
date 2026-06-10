@@ -268,6 +268,73 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   padding: .3rem .5rem; font-size: .72rem; font-family: inherit;
 }
 
+/* ── CLIENTES (libreta del vendedor) ── */
+.clients-topbar { padding: .25rem 1rem .5rem; }
+.btn-new-client {
+  width: 100%; background: var(--accent); color: #0d0f14;
+  border: none; border-radius: 10px; padding: .6rem;
+  font-weight: 700; font-size: .8rem; cursor: pointer;
+}
+.client-card {
+  display: flex; align-items: center; gap: .6rem;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: .65rem .75rem; margin: 0 1rem .5rem;
+  cursor: pointer;
+}
+.client-card-main { flex: 1; min-width: 0; }
+.client-name { font-weight: 700; font-size: .85rem; }
+.client-notes { font-size: .7rem; color: var(--muted); margin-top: .2rem; white-space: pre-line; }
+.client-list-tag {
+  flex-shrink: 0; font-size: .62rem; font-weight: 700;
+  background: var(--accent); color: #0d0f14;
+  border-radius: 99px; padding: .15rem .5rem; white-space: nowrap;
+}
+.btn-delete-client {
+  width: 100%; margin-top: .6rem; background: none;
+  border: 1px solid #f87171; color: #f87171;
+  border-radius: 10px; padding: .5rem; font-size: .75rem; cursor: pointer;
+}
+/* Recuadro de cliente en la pestaña Pedido */
+.btn-pick-client {
+  width: 100%; background: var(--surface); color: var(--text);
+  border: 1px dashed var(--border); border-radius: 10px;
+  padding: .65rem; font-size: .8rem; cursor: pointer;
+}
+.order-client-card {
+  display: flex; align-items: flex-start; gap: .5rem;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: .55rem .65rem;
+}
+.occ-main { flex: 1; min-width: 0; }
+.occ-name { font-size: .8rem; font-weight: 700; display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+.occ-notes { font-size: .68rem; color: var(--muted); margin-top: .25rem; white-space: pre-line; }
+.occ-warn { font-size: .62rem; color: #f59e0b; font-weight: 600; }
+.occ-actions { display: flex; gap: .3rem; flex-shrink: 0; }
+.occ-btn {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); border-radius: 8px; padding: .3rem .45rem;
+  font-size: .75rem; cursor: pointer;
+}
+/* Picker de cliente (overlay) */
+.client-picker-list { max-height: 45vh; overflow-y: auto; margin: .5rem 0; }
+.cp-row {
+  display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+  padding: .55rem .6rem; border: 1px solid var(--border); border-radius: 10px;
+  margin-bottom: .4rem; cursor: pointer; background: var(--surface);
+}
+.cp-name { font-size: .8rem; font-weight: 600; }
+.cp-empty { font-size: .72rem; color: var(--muted); padding: .75rem .25rem; text-align: center; }
+/* Chips de lista bloqueados (la define la ficha del cliente) */
+.list-chip.locked { opacity: .55; cursor: not-allowed; }
+.tpl-list-chips.locked .tpl-list-chip { opacity: .55; cursor: not-allowed; }
+/* Select de la libreta en el modal de plantilla */
+.tpl-client-select-row { padding: .4rem 0 .2rem; }
+.tpl-client-select-row select {
+  width: 100%; background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: .45rem .5rem; font-size: .78rem; font-family: inherit;
+}
+
 /* STOCK CARDS */
 .stock-results { display: flex; flex-direction: column; height: 100%; }
 #stockList { padding: 0 1rem 1rem; }
@@ -1191,7 +1258,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
       <div class="field-group" style="padding:.75rem 1rem 0">
         <label>Cliente</label>
-        <input type="text" id="orderClient" placeholder="Nombre del cliente" oninput="updateOrderClient()" autocomplete="off">
+        <div id="orderClientBox"></div>
       </div>
 
       <!-- Buscador rápido para agregar productos (pedidos manuscritos) -->
@@ -1241,6 +1308,23 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   </div>
 </div>
 
+<!-- ══ TAB: CLIENTES (libreta del vendedor) ══ -->
+<div class="tab-page" id="pageClients">
+  <div class="stock-results">
+    <div class="search-bar">
+      <input type="text" id="clientsSearchInput" placeholder="🔍 Buscar cliente..." oninput="renderClientsTab()">
+      <button class="clear-btn" id="clientsClearBtn" onclick="clearClientsSearch()">✕</button>
+    </div>
+    <div class="clients-topbar">
+      <button class="btn-new-client" onclick="openClientEdit(null)">➕ Nuevo cliente</button>
+    </div>
+    <div class="result-count" id="clientsCount">0 clientes</div>
+    <div class="scroll-body">
+      <div id="clientsList"></div>
+    </div>
+  </div>
+</div>
+
 <!-- ══ TAB BAR ══ -->
 <div class="tab-bar">
   <button class="tab-btn" id="tab-home" onclick="switchTab('home')">
@@ -1250,6 +1334,10 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   <button class="tab-btn" id="tab-stock" onclick="switchTab('stock')">
     <span class="tab-icon">📦</span>
     <span>STOCK</span>
+  </button>
+  <button class="tab-btn" id="tab-clients" onclick="switchTab('clients')">
+    <span class="tab-icon">👤</span>
+    <span>CLIENTES</span>
   </button>
   <button class="tab-btn" id="tab-order" onclick="switchTab('order')">
     <span class="tab-icon">📝</span>
@@ -1287,6 +1375,10 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   <div class="add-overlay-content">
     <div class="add-overlay-name">Nombre del cliente</div>
     <div class="add-overlay-sub">Para quién es esta plantilla</div>
+    <!-- Atajo: elegir un cliente de la libreta (autocompleta nombre y lista) -->
+    <div class="tpl-client-select-row" id="tplClientSelectRow" style="display:none">
+      <select id="tplClientSelect" onchange="onTplClientSelect()"></select>
+    </div>
     <div class="add-overlay-qty-row">
       <input type="text" id="clientNameInput" placeholder="Ej: pipi 2"
         autocomplete="off" autocorrect="off" autocapitalize="words" style="flex:1">
@@ -1303,6 +1395,51 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     <div class="add-overlay-actions">
       <button class="btn-cancel" onclick="closeClientNameOverlay()">Cancelar</button>
       <button class="btn-confirm" onclick="confirmClientName()">Generar plantilla</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ OVERLAY: CREAR / EDITAR FICHA DE CLIENTE ══ -->
+<div class="overlay" id="clientEditOverlay">
+  <div class="add-overlay-content">
+    <div class="add-overlay-name" id="clientEditTitle">Nuevo cliente</div>
+    <div class="field-group" style="margin-top:.6rem">
+      <label>Nombre</label>
+      <input type="text" id="clientEditName" placeholder="Nombre del cliente"
+        autocomplete="off" autocorrect="off" autocapitalize="words">
+    </div>
+    <div class="tpl-list-row">
+      <span class="tpl-list-label">Lista de precios:</span>
+      <div class="tpl-list-chips">
+        <div class="tpl-list-chip" data-list="act"  onclick="setClientEditList('act')">Lista 7</div>
+        <div class="tpl-list-chip" data-list="dist" onclick="setClientEditList('dist')">Distribuidor</div>
+        <div class="tpl-list-chip" data-list="vip"  onclick="setClientEditList('vip')">VIP</div>
+      </div>
+    </div>
+    <div class="field-group">
+      <label>Notas (solo las ves vos)</label>
+      <textarea id="clientEditNotes" rows="3" placeholder="Info del cliente para no olvidar..."></textarea>
+    </div>
+    <div class="add-overlay-actions">
+      <button class="btn-cancel" onclick="closeClientEdit()">Cancelar</button>
+      <button class="btn-confirm" onclick="saveClientEdit()">Guardar</button>
+    </div>
+    <button class="btn-delete-client" id="clientEditDeleteBtn" onclick="deleteClientEdit()">🗑 Borrar cliente</button>
+  </div>
+</div>
+
+<!-- ══ OVERLAY: ELEGIR CLIENTE PARA EL PEDIDO ══ -->
+<div class="overlay" id="clientPickerOverlay">
+  <div class="add-overlay-content">
+    <div class="add-overlay-name">Elegir cliente</div>
+    <div class="add-overlay-qty-row">
+      <input type="text" id="clientPickerSearch" placeholder="🔍 Buscar..."
+        oninput="renderClientPickerList()" autocomplete="off" style="flex:1">
+    </div>
+    <div id="clientPickerList" class="client-picker-list"></div>
+    <div class="add-overlay-actions">
+      <button class="btn-cancel" onclick="closeClientPicker()">Cancelar</button>
+      <button class="btn-confirm" onclick="openClientEditFromPicker()">➕ Nuevo</button>
     </div>
   </div>
 </div>
@@ -1405,6 +1542,7 @@ const state = {
   //   de duplicarla. null cuando es un pedido recién creado.
   currentOrder: {
     client: '',        // nombre del cliente
+    clientId: null,    // id de la ficha de la libreta (null si no tiene)
     items: [],
     notes: '',
     createdAt: '',
@@ -1415,6 +1553,10 @@ const state = {
   // Cada pedido: { id, client, items, total, status, createdAt, sentAt, vendor }
   // status: 'draft' | 'sent' | 'accepted' | 'rejected'
   orders: [],
+
+  // Libreta de clientes del vendedor (solo local, cada vendedor la suya)
+  // Cada ficha: { id, name, list, notes, createdAt, updatedAt }
+  clients: [],
 
   // Filtro UI
   stockFilter: 'all',  // 'all' | 'available' | 'lowstock'
@@ -1663,6 +1805,17 @@ function loadOrders() {
   }
 }
 
+// Libreta de clientes (fichas del vendedor)
+function saveClients() {
+  _safeSetItem('vendor_clients', JSON.stringify(state.clients), 'la libreta de clientes');
+}
+function loadClients() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem('vendor_clients') || '[]');
+    state.clients = Array.isArray(parsed) ? parsed : [];
+  } catch (e) { state.clients = []; }
+}
+
 // Pedido en construcción (borrador) — se persiste para que el vendedor
 // no pierda el trabajo si se le cierra la pestaña, se queda sin batería,
 // o cualquier otra cosa interrumpe el armado del pedido.
@@ -1675,6 +1828,7 @@ function loadCurrentOrder() {
     if (v && typeof v === 'object') {
       state.currentOrder = {
         client:    typeof v.client === 'string' ? v.client : '',
+        clientId:  typeof v.clientId === 'string' ? v.clientId : null,
         items:     Array.isArray(v.items) ? v.items : [],
         notes:     typeof v.notes === 'string' ? v.notes : '',
         createdAt: typeof v.createdAt === 'string' ? v.createdAt : '',
@@ -1695,6 +1849,7 @@ loadActiveList();
 loadStock();
 loadPrices();
 loadOrders();
+loadClients();
 loadCurrentOrder();
 
 // ════════════════════════════════════════════════════════════════════
@@ -2633,6 +2788,26 @@ function openClientNameOverlay() {
   document.querySelectorAll('#clientNameOverlay .tpl-list-chip').forEach(c => {
     c.classList.toggle('active', c.dataset.list === state.activeList);
   });
+  // Atajo: si hay fichas en la libreta, ofrecer elegir una (autocompleta
+  // nombre y lista; la lista queda fijada por la ficha).
+  _tplChipsLocked = false;
+  const chipsBox = document.querySelector('#clientNameOverlay .tpl-list-chips');
+  if (chipsBox) chipsBox.classList.remove('locked');
+  const row = document.getElementById('tplClientSelectRow');
+  const sel = document.getElementById('tplClientSelect');
+  if (row && sel) {
+    if (state.clients.length) {
+      const opts = [...state.clients]
+        .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es'))
+        .map(c => `<option value="${escHtml(c.id)}">${escHtml(c.name)} — ${listDisplayName(c.list)}</option>`)
+        .join('');
+      sel.innerHTML = '<option value="">— Otro cliente (escribir abajo) —</option>' + opts;
+      sel.value = '';
+      row.style.display = 'block';
+    } else {
+      row.style.display = 'none';
+    }
+  }
   document.getElementById('clientNameOverlay').classList.add('visible');
   setTimeout(() => input && input.focus(), 100);
 }
@@ -2642,6 +2817,10 @@ function closeClientNameOverlay() {
 
 // Click en uno de los chips de lista dentro del modal de plantilla
 function setTemplateList(list, el) {
+  if (_tplChipsLocked) {
+    toast('La lista la define la ficha del cliente elegido', 'err');
+    return;
+  }
   document.querySelectorAll('#clientNameOverlay .tpl-list-chip').forEach(c => c.classList.remove('active'));
   if (el) el.classList.add('active');
 }
@@ -3135,12 +3314,23 @@ function listDisplayName(list) {
 //     price=0, subtotal=0. El render los muestra con badge rojo.
 //   - Si el usuario después vuelve a una lista donde sí tienen precio,
 //     el flag _noPrice se quita y los precios se restauran.
-function setActiveList(newList) {
+function setActiveList(newList, opts) {
+  opts = opts || {};
   if (newList !== 'act' && newList !== 'dist' && newList !== 'vip') return;
   if (newList === state.activeList) return; // nada que hacer
 
+  // Si el pedido en curso tiene un cliente de la libreta, la lista la
+  // define SU FICHA — no se puede pisar desde los chips. Para usar otra
+  // lista hay que editar la ficha (✏️ en el recuadro del cliente).
+  if (!opts.fromClient && state.currentOrder?.clientId && getClientById(state.currentOrder.clientId)) {
+    toast('La lista la define la ficha del cliente — editala con el ✏️ del pedido', 'err');
+    if (typeof renderOrderTab === 'function') renderOrderTab();
+    if (typeof renderStockTab === 'function') renderStockTab();
+    return;
+  }
+
   const items = state.currentOrder?.items || [];
-  if (items.length > 0) {
+  if (items.length > 0 && !opts.skipConfirm) {
     const newName = listDisplayName(newList);
     const oldName = listDisplayName(state.activeList);
     if (!confirm(
@@ -3329,6 +3519,7 @@ function removeFromOrder(key) {
 function clearCurrentOrder() {
   state.currentOrder = {
     client: '',
+    clientId: null,
     items: [],
     notes: '',
     createdAt: '',
@@ -3501,6 +3692,7 @@ function saveDraft() {
     vendorCode: state.user.code,
     list:      state.activeList,
     client:    (co.client || '').trim(),
+    clientId:  co.clientId || null,
     items:     co.items.map(i => ({ ...i })),
     notes:     co.notes || '',
     total:     orderTotal(co.items),
@@ -3583,12 +3775,23 @@ function loadDraftIntoCurrentOrder(draftId) {
 
   state.currentOrder = {
     client:    draft.client || '',
+    clientId:  draft.clientId || null,
     items,
     notes:     draft.notes || '',
     createdAt: draft.createdAt || new Date().toISOString(),
     _draftId:  draft.id,
   };
   saveCurrentOrder();
+
+  // Si el cliente del borrador tiene ficha y su lista cambió desde que se
+  // guardó el borrador, manda la ficha: re-aplicar su lista (recalcula).
+  const cli = draft.clientId ? getClientById(draft.clientId) : null;
+  if (cli && cli.list !== state.activeList) {
+    setActiveList(cli.list, { fromClient: true, skipConfirm: true });
+    setTimeout(() => {
+      toast(`La ficha de ${cli.name} usa ${listDisplayName(cli.list)} — precios actualizados`, 'ok');
+    }, 300);
+  }
 
   // Avisos diferenciados, encolados para que no se pisen
   let delay = 700;
@@ -3848,6 +4051,310 @@ function handleLoadDraft(draftId) {
 }
 
 // ════════════════════════════════════════════════════════════════════
+// CLIENTS.JS — Libreta de clientes del vendedor
+// ════════════════════════════════════════════════════════════════════
+//
+// Cada vendedor tiene SUS clientes, guardados solo en su teléfono
+// (state.clients). Ficha: { id, name, list, notes, createdAt, updatedAt }.
+//
+// REGLA DE NEGOCIO: la lista de precios de un pedido la define la FICHA
+// del cliente. Al elegirlo en la pestaña Pedido, la app cambia a su lista
+// y los chips quedan bloqueados; para usar otra lista hay que editar la
+// ficha (evita errores de lista al armar pedidos).
+//
+// La central tiene su propia libreta (con sus notas) en StockMerger —
+// son independientes, no se sincronizan entre sí.
+// ════════════════════════════════════════════════════════════════════
+
+function getClientById(id) {
+  if (!id) return null;
+  return state.clients.find(c => c.id === id) || null;
+}
+
+function _clientNameKey(name) {
+  return String(name || '').trim().toLowerCase();
+}
+
+function findClientByName(name) {
+  const k = _clientNameKey(name);
+  if (!k) return null;
+  return state.clients.find(c => _clientNameKey(c.name) === k) || null;
+}
+
+function _newClientId() {
+  return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+// ── Pestaña Clientes ──
+function renderClientsTab() {
+  const box = document.getElementById('clientsList');
+  if (!box) return;
+  const qEl = document.getElementById('clientsSearchInput');
+  const q = _clientNameKey(qEl ? qEl.value : '');
+  const clearBtn = document.getElementById('clientsClearBtn');
+  if (clearBtn) clearBtn.classList.toggle('visible', q.length > 0);
+
+  let list = [...state.clients].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es'));
+  if (q) {
+    list = list.filter(c =>
+      _clientNameKey(c.name).includes(q) || _clientNameKey(c.notes).includes(q));
+  }
+
+  const countEl = document.getElementById('clientsCount');
+  if (countEl) countEl.textContent = list.length + ' cliente' + (list.length !== 1 ? 's' : '');
+
+  if (!state.clients.length) {
+    box.innerHTML = `<div class="empty-state"><div class="ei">👤</div>
+      <p>Todavía no cargaste clientes.<br>Tocá <b>➕ Nuevo cliente</b> para crear la primera ficha.</p></div>`;
+    return;
+  }
+  if (!list.length) {
+    box.innerHTML = `<div class="empty-state"><div class="ei">🔍</div>Sin resultados.</div>`;
+    return;
+  }
+  box.innerHTML = list.map(c => {
+    const notes = (c.notes || '').trim();
+    return `<div class="client-card" onclick="openClientEdit('${escJsAttr(c.id)}')">
+      <div class="client-card-main">
+        <div class="client-name">${escHtml(c.name)}</div>
+        ${notes ? `<div class="client-notes">📌 ${escHtml(notes)}</div>` : ''}
+      </div>
+      <span class="client-list-tag">${listDisplayName(c.list)}</span>
+    </div>`;
+  }).join('');
+}
+
+function clearClientsSearch() {
+  const el = document.getElementById('clientsSearchInput');
+  if (el) el.value = '';
+  renderClientsTab();
+}
+
+// ── Crear / editar ficha ──
+let _editingClientId = null;   // null = creando una nueva
+let _clientEditList = 'act';   // lista elegida en los chips del editor
+let _clientFromPicker = false; // el editor se abrió desde "elegir cliente"
+
+function openClientEdit(id, fromPicker) {
+  _editingClientId = id || null;
+  _clientFromPicker = !!fromPicker;
+  const c = id ? getClientById(id) : null;
+  document.getElementById('clientEditTitle').textContent = c ? 'Editar cliente' : 'Nuevo cliente';
+  document.getElementById('clientEditName').value = c ? c.name : '';
+  document.getElementById('clientEditNotes').value = c ? (c.notes || '') : '';
+  _clientEditList = c ? c.list : (state.activeList || 'act');
+  _syncClientEditChips();
+  document.getElementById('clientEditDeleteBtn').style.display = c ? 'block' : 'none';
+  document.getElementById('clientEditOverlay').classList.add('visible');
+}
+
+function closeClientEdit() {
+  document.getElementById('clientEditOverlay').classList.remove('visible');
+  _editingClientId = null;
+  _clientFromPicker = false;
+}
+
+function setClientEditList(list) {
+  _clientEditList = list;
+  _syncClientEditChips();
+}
+
+function _syncClientEditChips() {
+  document.querySelectorAll('#clientEditOverlay .tpl-list-chip').forEach(ch => {
+    ch.classList.toggle('active', ch.dataset.list === _clientEditList);
+  });
+}
+
+function saveClientEdit() {
+  const name = (document.getElementById('clientEditName').value || '').trim();
+  const notes = (document.getElementById('clientEditNotes').value || '').trim();
+  if (!name) { toast('Falta el nombre del cliente', 'err'); return; }
+
+  // Dos fichas con el mismo nombre confundirían todo — no permitir
+  const dup = findClientByName(name);
+  if (dup && dup.id !== _editingClientId) {
+    toast('Ya existe una ficha con ese nombre', 'err');
+    return;
+  }
+
+  const now = new Date().toISOString();
+  let c = _editingClientId ? getClientById(_editingClientId) : null;
+  const isNew = !c;
+  if (!c) {
+    c = { id: _newClientId(), createdAt: now };
+    state.clients.push(c);
+  }
+  c.name = name;
+  c.list = _clientEditList;
+  c.notes = notes;
+  c.updatedAt = now;
+  saveClients();
+
+  const fromPicker = _clientFromPicker;
+  closeClientEdit();
+  renderClientsTab();
+
+  if (!isNew && state.currentOrder.clientId === c.id) {
+    // Es el cliente del pedido en curso: reflejar nombre y, si cambió
+    // la lista, recalcular los precios del pedido con la nueva.
+    state.currentOrder.client = c.name;
+    saveCurrentOrder();
+    if (c.list !== state.activeList) {
+      setActiveList(c.list, { fromClient: true, skipConfirm: true });
+      toast(`${c.name} ahora usa ${listDisplayName(c.list)} — precios recalculados`, 'ok');
+    } else {
+      renderOrderTab();
+      toast('Ficha actualizada ✓', 'ok');
+    }
+  } else if (isNew && fromPicker) {
+    // Venía de "elegir cliente" del pedido — asignarlo directo
+    pickClientForOrder(c.id);
+  } else {
+    toast(isNew ? `Cliente ${c.name} creado ✓` : 'Ficha actualizada ✓', 'ok');
+  }
+}
+
+function deleteClientEdit() {
+  const c = getClientById(_editingClientId);
+  if (!c) { closeClientEdit(); return; }
+  if (!confirm(`¿Borrar la ficha de "${c.name}"?\n\nLos pedidos ya hechos no se tocan.`)) return;
+  state.clients = state.clients.filter(x => x.id !== c.id);
+  saveClients();
+  // Si era el cliente del pedido en curso: queda el nombre suelto y la
+  // lista se desbloquea.
+  if (state.currentOrder.clientId === c.id) {
+    state.currentOrder.clientId = null;
+    saveCurrentOrder();
+    renderOrderTab();
+  }
+  closeClientEdit();
+  renderClientsTab();
+  toast(`Ficha de ${c.name} borrada`, 'ok');
+}
+
+// ── Elegir cliente para el pedido ──
+function openClientPicker() {
+  const inp = document.getElementById('clientPickerSearch');
+  if (inp) inp.value = '';
+  renderClientPickerList();
+  document.getElementById('clientPickerOverlay').classList.add('visible');
+}
+
+function closeClientPicker() {
+  document.getElementById('clientPickerOverlay').classList.remove('visible');
+}
+
+function renderClientPickerList() {
+  const box = document.getElementById('clientPickerList');
+  if (!box) return;
+  const q = _clientNameKey(document.getElementById('clientPickerSearch')?.value);
+  let list = [...state.clients].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es'));
+  if (q) list = list.filter(c => _clientNameKey(c.name).includes(q));
+  if (!list.length) {
+    box.innerHTML = `<div class="cp-empty">${state.clients.length
+      ? 'Sin resultados.'
+      : 'Todavía no tenés clientes — creá el primero con ➕ Nuevo.'}</div>`;
+    return;
+  }
+  box.innerHTML = list.map(c => `
+    <div class="cp-row" onclick="pickClientForOrder('${escJsAttr(c.id)}')">
+      <span class="cp-name">${escHtml(c.name)}</span>
+      <span class="client-list-tag">${listDisplayName(c.list)}</span>
+    </div>`).join('');
+}
+
+function openClientEditFromPicker() {
+  const q = (document.getElementById('clientPickerSearch')?.value || '').trim();
+  closeClientPicker();
+  openClientEdit(null, true);
+  // Si había escrito algo en el buscador, usarlo como nombre inicial
+  if (q) document.getElementById('clientEditName').value = q;
+}
+
+function pickClientForOrder(id) {
+  const c = getClientById(id);
+  if (!c) return;
+  const items = state.currentOrder.items || [];
+  if (items.length > 0 && c.list !== state.activeList) {
+    if (!confirm(
+      `${c.name} usa la lista ${listDisplayName(c.list)}.\n` +
+      `Los precios de ${items.length} item${items.length !== 1 ? 's' : ''} del pedido se van a recalcular.\n\n¿Continuar?`
+    )) return;
+  }
+  state.currentOrder.client = c.name;
+  state.currentOrder.clientId = c.id;
+  saveCurrentOrder();
+  closeClientPicker();
+  if (c.list !== state.activeList) {
+    setActiveList(c.list, { fromClient: true, skipConfirm: true });
+  } else {
+    renderOrderTab();
+  }
+  toast(`Cliente: ${c.name} · ${listDisplayName(c.list)}`, 'ok');
+}
+
+function unassignOrderClient() {
+  state.currentOrder.client = '';
+  state.currentOrder.clientId = null;
+  saveCurrentOrder();
+  renderOrderTab();
+}
+
+// Recuadro de cliente en la pestaña Pedido (lo rellena renderOrderTab)
+function _orderClientBoxHTML() {
+  const co = state.currentOrder;
+  const c = co.clientId ? getClientById(co.clientId) : null;
+  if (c) {
+    const notes = (c.notes || '').trim();
+    return `<div class="order-client-card">
+      <div class="occ-main">
+        <div class="occ-name">👤 ${escHtml(c.name)} <span class="client-list-tag">${listDisplayName(c.list)}</span></div>
+        ${notes ? `<div class="occ-notes">📌 ${escHtml(notes)}</div>` : ''}
+      </div>
+      <div class="occ-actions">
+        <button class="occ-btn" title="Editar ficha" onclick="openClientEdit('${escJsAttr(c.id)}')">✏️</button>
+        <button class="occ-btn" title="Cambiar de cliente" onclick="openClientPicker()">⇄</button>
+        <button class="occ-btn" title="Quitar cliente" onclick="unassignOrderClient()">✕</button>
+      </div>
+    </div>`;
+  }
+  if (co.client && co.client.trim()) {
+    // Nombre suelto sin ficha (ej: pedido creado desde una plantilla importada)
+    return `<div class="order-client-card occ-noficha">
+      <div class="occ-main">
+        <div class="occ-name">👤 ${escHtml(co.client)} <span class="occ-warn">sin ficha</span></div>
+      </div>
+      <div class="occ-actions">
+        <button class="occ-btn" title="Elegir de mis clientes" onclick="openClientPicker()">⇄</button>
+        <button class="occ-btn" title="Quitar cliente" onclick="unassignOrderClient()">✕</button>
+      </div>
+    </div>`;
+  }
+  return `<button class="btn-pick-client" onclick="openClientPicker()">👤 Elegir cliente</button>`;
+}
+
+// ── Atajo de libreta en el modal de plantilla para clientes ──
+let _tplChipsLocked = false;
+
+function onTplClientSelect() {
+  const sel = document.getElementById('tplClientSelect');
+  const input = document.getElementById('clientNameInput');
+  const chipsBox = document.querySelector('#clientNameOverlay .tpl-list-chips');
+  const c = getClientById(sel ? sel.value : '');
+  if (c) {
+    if (input) input.value = c.name;
+    document.querySelectorAll('#clientNameOverlay .tpl-list-chip').forEach(ch => {
+      ch.classList.toggle('active', ch.dataset.list === c.list);
+    });
+    _tplChipsLocked = true;
+    if (chipsBox) chipsBox.classList.add('locked');
+  } else {
+    _tplChipsLocked = false;
+    if (chipsBox) chipsBox.classList.remove('locked');
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
 // UI.JS — Navegación entre pestañas y render de cada vista
 // ════════════════════════════════════════════════════════════════════
 //
@@ -3864,10 +4371,11 @@ function switchTab(tab) {
   document.getElementById('page' + cap(tab)).classList.add('active');
   document.getElementById('tab-' + tab).classList.add('active');
 
-  if (tab === 'home')   renderHomeTab();
-  if (tab === 'stock')  renderStockTab();
-  if (tab === 'order')  renderOrderTab();
-  if (tab === 'orders') renderOrdersTab();
+  if (tab === 'home')    renderHomeTab();
+  if (tab === 'stock')   renderStockTab();
+  if (tab === 'order')   renderOrderTab();
+  if (tab === 'orders')  renderOrdersTab();
+  if (tab === 'clients') renderClientsTab();
 }
 
 // ══ HOME / CONFIGURACIÓN ══
@@ -4256,12 +4764,17 @@ function renderOrderTab() {
   const container = document.getElementById('orderItemsList');
   const items = state.currentOrder.items;
 
-  document.getElementById('orderClient').value = state.currentOrder.client || '';
+  const clientBox = document.getElementById('orderClientBox');
+  if (clientBox) clientBox.innerHTML = _orderClientBoxHTML();
   document.getElementById('orderNotes').value = state.currentOrder.notes || '';
 
-  // Sincronizar los chips de lista activa con state.activeList
+  // Sincronizar los chips de lista activa con state.activeList.
+  // Con un cliente de la libreta asignado, la lista queda bloqueada
+  // (la define su ficha — se cambia editando la ficha).
+  const listLocked = !!(state.currentOrder.clientId && getClientById(state.currentOrder.clientId));
   document.querySelectorAll('#pageOrder .list-chip').forEach(c => {
     c.classList.toggle('active', c.dataset.list === state.activeList);
+    c.classList.toggle('locked', listLocked);
   });
 
   if (!items.length) {
@@ -4352,7 +4865,11 @@ function changeOrderQty(key, delta) {
 }
 
 function updateOrderClient() {
-  state.currentOrder.client = document.getElementById('orderClient').value;
+  // El input libre fue reemplazado por la libreta de clientes; queda el
+  // guard por si algún flujo viejo lo llama sin que exista el elemento.
+  const el = document.getElementById('orderClient');
+  if (!el) return;
+  state.currentOrder.client = el.value;
   saveCurrentOrder();
 }
 
