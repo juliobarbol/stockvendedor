@@ -103,6 +103,7 @@ Cliente creado con `supabase.createClient(url, anonKey)` (ver `scClient()`).
 |---|---|
 | `catalog` | **Lee** la fila de su tienda (`id = ns`): `{ id, payload, updated_at }`. El `payload` es un `vendor_data_v2` (stock + 3 listas). Lo aplica con `applyVendorData()`. |
 | `orders` | **Escribe** (insert) un pedido: `{ ns, order_id, vendor, client, payload }`. |
+| `clients` | **Escribe** (upsert) la ficha `{ ns, client_id, name, list, vendor }` al crear/editar un cliente de la libreta (las notas privadas NO viajan). La central las baja para su libreta. |
 
 Realtime: se suscribe a `postgres_changes` en `catalog` para refrescar el
 catálogo apenas la central publica. (Si el payload supera el límite de 256 KB
