@@ -192,6 +192,22 @@ Dos canales equivalentes, según haya nube o no:
   Es el orden de los Excel de la central, el orden por defecto del catálogo
   del vendedor y de la plantilla Excel para clientes. Valores no listados van
   después (alfabéticos); sin rubro/marca, al final.
+- **Tesorería / Caja (solo central, pestaña 💰 Caja en StockMerger)**: 4
+  cuentas fijas — Caja Pesos (ARS), Caja Dólares (USD), Mercado Pago (ARS),
+  Lemon (ARS). La **cotización del día** (1 USD = ARS) es un campo editable a
+  mano; cada movimiento guarda la cotización con la que se registró, así los
+  reportes históricos no cambian al actualizarla. Nada de esto viaja a
+  StockVendedor ni a la nube (vive en `state.treasury`, local + backups).
+- **Cuenta corriente de clientes (en USD)**: la deuda nace al CONFIRMAR un
+  pedido (flag `ctaCte` que se setea desde v26 — los confirmados antes se
+  asumen ya cobrados). Los pagos se registran como "cobranza" en Caja (en
+  cualquier cuenta; si es en pesos se convierte a USD con la cotización) y
+  bajan el saldo automáticamente. Deudas previas a la app → campo
+  `saldoInicial` (USD) en la ficha del cliente. El cruce es POR NOMBRE
+  normalizado (`_cliKey`), igual que fichas↔pedidos.
+- **Comisiones por vendedor**: % editable por vendedor (se guarda en
+  `state.treasury.commissions`), aplicado sobre las ventas confirmadas de su
+  cartera en el mes (pestaña Caja → Reportes de StockMerger).
 
 ## Notas de desarrollo
 
