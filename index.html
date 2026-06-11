@@ -1185,6 +1185,19 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
         <div class="sb-status" id="sbStatus"></div>
       </div>
     </div>
+
+    <!-- 🧨 Gran reset (protegido por contraseña) -->
+    <div class="config-section">
+      <div class="section-title" style="color:var(--red)">🧨 Gran reset</div>
+      <p class="info-text">
+        Borra TODOS los datos de esta app en este teléfono (catálogo, pedidos,
+        clientes, usuario) para empezar el uso real desde cero. Se conserva la
+        conexión a la nube. Pide contraseña.
+      </p>
+      <button class="btn-save-config" onclick="granReset()" style="border-color:var(--red);color:var(--red)">
+        🧨 Borrar todo y empezar de cero
+      </button>
+    </div>
   </div>
 </div>
 
@@ -2294,6 +2307,50 @@ function applyVendorData(data, opts = {}) {
   if (typeof renderHomeTab  === 'function') renderHomeTab();
   if (typeof renderOrderTab === 'function') renderOrderTab();
   return true;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// GRAN RESET — borrar TODO lo local para pasar de pruebas a uso real
+// ════════════════════════════════════════════════════════════════════
+//
+// Botón al final de la pestaña Home, protegido por contraseña (la misma
+// que en StockMerger). Borra TODOS los datos de ESTE teléfono (catálogo,
+// pedidos enviados, cola, clientes, usuario) salvo la conexión a la nube.
+// Los datos de prueba de la NUBE los borra el gran reset de la central.
+// ════════════════════════════════════════════════════════════════════
+
+const GRAN_RESET_PASS = 'opbayresgranreset';
+const GRAN_RESET_KEEP = ['sb_config'];
+
+function granReset() {
+  const pass = prompt(
+    '🧨 GRAN RESET\n\n' +
+    'Esto borra TODOS los datos de la app en este teléfono (catálogo, ' +
+    'pedidos, clientes, usuario) para empezar de cero.\n\n' +
+    'Para continuar, escribí la contraseña:'
+  );
+  if (pass === null) return;
+  if (pass.trim() !== GRAN_RESET_PASS) {
+    toast('Contraseña incorrecta — no se borró nada.', 'err');
+    return;
+  }
+  if (!confirm(
+    '⚠️ ÚLTIMA CONFIRMACIÓN\n\nSe va a borrar TODO lo guardado en este teléfono:\n' +
+    '• Catálogo (stock y precios)\n• Pedidos enviados y pedido en curso\n' +
+    '• Libreta de clientes\n• Usuario configurado\n\n' +
+    'Se conserva la conexión a la nube.\n\n¿Borrar todo?'
+  )) return;
+
+  try {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i));
+    keys.forEach(k => {
+      if (!GRAN_RESET_KEEP.includes(k)) { try { localStorage.removeItem(k); } catch (e) {} }
+    });
+  } catch (e) { console.warn('granReset:', e); }
+
+  alert('✅ Gran reset completo. La app queda en cero, lista para el uso real.');
+  location.reload();
 }
 
 // ════════════════════════════════════════════════════════════════════
