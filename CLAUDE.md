@@ -218,6 +218,12 @@ Dos canales equivalentes, según haya nube o no:
 - Todo lo de Supabase es opt-in: el flujo de archivos Excel/JSON debe seguir
   funcionando aunque no haya nube (ver comentarios "PARA EL PROGRAMADOR QUE
   AGREGUE BACKEND" en `IMPORT.JS`).
+- **Gran reset** (pasaje de pruebas a uso real): botón al final de Home,
+  protegido por la contraseña `opbayresgranreset` (hardcodeada — es un guard
+  anti-toque-accidental, no seguridad). Borra TODO lo local de este teléfono
+  salvo `sb_config`. Los datos de prueba de la NUBE los borra el gran reset
+  de la central (StockMerger, pestaña Archivos), que necesita las policies
+  de DELETE de `orders`/`catalog` agregadas a schema.sql desde esta versión.
 
 ## Deploy y versión del cache (PWA)
 

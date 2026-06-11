@@ -136,6 +136,14 @@ do $$ begin
   create policy "orders_insert" on orders for insert with check (true);
 exception when duplicate_object then null; end $$;
 
+-- Borrado: lo usa el "🧨 Gran reset" de la central para limpiar los datos
+-- de prueba al pasar a uso real. Mismo riesgo aceptado que el resto de las
+-- policies abiertas de arranque (ver nota de RLS más arriba).
+do $$ begin
+  create policy "orders_delete"  on orders  for delete using (true);
+  create policy "catalog_delete" on catalog for delete using (true);
+exception when duplicate_object then null; end $$;
+
 do $$ begin
   create policy "catalog_items_all"     on catalog_items     for all using (true) with check (true);
   create policy "rubro_multipliers_all" on rubro_multipliers for all using (true) with check (true);
