@@ -1210,6 +1210,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     <div class="sort-row">
       <span class="sort-label">Ordenar:</span>
       <select id="stockSortSelect" onchange="setStockSort(this.value)">
+        <option value="catalog">📑 Orden catálogo</option>
         <option value="product">Producto A→Z</option>
         <option value="marca">Marca A→Z</option>
         <option value="rubro">Rubro A→Z</option>
@@ -1577,9 +1578,15 @@ const state = {
   // Filtro UI
   stockFilter: 'all',  // 'all' | 'available' | 'lowstock'
   stockSearch: '',
-  // Orden del catálogo: 'product' | 'marca' | 'rubro' |
-  // 'price_asc' | 'price_desc' | 'qty_desc' | 'qty_asc'
-  stockSort: 'product',
+  // Orden del catálogo: 'catalog' (jerárquico: rubro → marca → modelo
+  // correlativo, según lo defina la central) | 'product' | 'marca' |
+  // 'rubro' | 'price_asc' | 'price_desc' | 'qty_desc' | 'qty_asc'
+  stockSort: 'catalog',
+
+  // Orden jerárquico definido por la central. Viene como campo aditivo
+  // `order` en el vendor_data_v2; si no viene, queda vacío y el orden
+  // "catalog" cae a rubro/marca alfabéticos + modelos correlativos.
+  catalogOrder: { rubros: [], marcas: [] },
 };
 
 // ══ PERSISTENCIA ══
@@ -1714,7 +1721,11 @@ function loadActiveList() {
 
 // Stock
 function saveStock() {
-  const payload = { stock: state.stock, stockUpdatedAt: state.stockUpdatedAt };
+  const payload = {
+    stock: state.stock,
+    stockUpdatedAt: state.stockUpdatedAt,
+    catalogOrder: state.catalogOrder,
+  };
   _safeSetItem('vendor_stock', JSON.stringify(payload), 'el stock importado');
 }
 function loadStock() {
@@ -1722,6 +1733,10 @@ function loadStock() {
     const p = JSON.parse(localStorage.getItem('vendor_stock') || 'null');
     if (!p) return;
     const raw = Array.isArray(p.stock) ? p.stock : []; // (V-B1) defensivo
+    state.catalogOrder = (p.catalogOrder && typeof p.catalogOrder === 'object')
+      ? { rubros: Array.isArray(p.catalogOrder.rubros) ? p.catalogOrder.rubros : [],
+          marcas: Array.isArray(p.catalogOrder.marcas) ? p.catalogOrder.marcas : [] }
+      : { rubros: [], marcas: [] };
 
     let migrated = 0;
     state.stock = raw
@@ -1983,6 +1998,44 @@ function escJsAttr(s) {
     .replace(/>/g, '&gt;');
 }
 
+// ── Orden "catálogo" (rubro → marca → modelo correlativo) ──
+// Misma lógica que en StockMerger (makeCatalogCmp): el orden de rubros y
+// marcas lo define la central (state.catalogOrder, viaja en vendor_data_v2);
+// adentro, los modelos van en orden correlativo natural (A01 < A01 Core <
+// A02 < A02s < A10 — no alfabético puro, que pondría A10 antes que A2).
+
+// Comparación "correlativa" de textos: los números se comparan como números.
+function cmpModelo(a, b) {
+  return String(a).localeCompare(String(b), 'es', { numeric: true, sensitivity: 'base' });
+}
+
+// Posición de un valor dentro de un orden definido (case-insensitive).
+// No listado → después de los listados; vacío → al final de todo.
+function _rankIn(map, val) {
+  const k = String(val || '').trim().toLowerCase();
+  if (!k) return 1e9;
+  const i = map.get(k);
+  return i === undefined ? 1e8 : i;
+}
+function _rankMapOf(arr) {
+  const m = new Map();
+  (arr || []).forEach((v, i) => m.set(String(v).trim().toLowerCase(), i));
+  return m;
+}
+
+// Comparador para items con shape { rubro, marca, product }.
+function makeCatalogCmp() {
+  const ord = state.catalogOrder || {};
+  const rRank = _rankMapOf(ord.rubros);
+  const mRank = _rankMapOf(ord.marcas);
+  return (a, b) =>
+    (_rankIn(rRank, a.rubro) - _rankIn(rRank, b.rubro)) ||
+    cmpModelo(a.rubro || '', b.rubro || '') ||
+    (_rankIn(mRank, a.marca) - _rankIn(mRank, b.marca)) ||
+    cmpModelo(a.marca || '', b.marca || '') ||
+    cmpModelo(a.product || '', b.product || '');
+}
+
 // ════════════════════════════════════════════════════════════════════
 // IMPORT.JS — Importar stock y listas de precios enviadas por la central
 // ════════════════════════════════════════════════════════════════════
@@ -2204,6 +2257,12 @@ function applyVendorData(data, opts = {}) {
   state.stockUpdatedAt = data._exportedAt || new Date().toISOString();
   state.prices = pricesNormalizadas;
   state.pricesUpdatedAt = state.stockUpdatedAt;
+  // Orden del catálogo definido por la central (campo aditivo `order`; si no
+  // viene, el orden "catalog" cae a rubro/marca alfabéticos).
+  state.catalogOrder = (data.order && typeof data.order === 'object')
+    ? { rubros: Array.isArray(data.order.rubros) ? data.order.rubros : [],
+        marcas: Array.isArray(data.order.marcas) ? data.order.marcas : [] }
+    : { rubros: [], marcas: [] };
 
   // Si la lista activa quedó SIN precios después de importar, cambiar
   // automáticamente a la primera lista que tenga algo.
@@ -2886,14 +2945,10 @@ function _doGenerateTemplate(cliente, list) {
       return;
     }
 
-    // Ordenar por RUBRO, luego marca, luego producto
-    items.sort((a, b) => {
-      const r = (a.rubro || 'zzz').localeCompare(b.rubro || 'zzz', 'es');
-      if (r !== 0) return r;
-      const m = (a.marca || 'zzz').localeCompare(b.marca || 'zzz', 'es');
-      if (m !== 0) return m;
-      return a.product.localeCompare(b.product, 'es');
-    });
+    // Orden catálogo: rubro → marca → modelo correlativo, con la prioridad
+    // de rubros/marcas que definió la central. Así el cliente lee la lista
+    // de corrido, sin productos mezclados.
+    items.sort(makeCatalogCmp());
 
     // Construir filas
     const listName = listDisplayName(list);
@@ -4545,7 +4600,7 @@ function renderStockTab() {
   sortStockData(data);
 
   const sortSel = document.getElementById('stockSortSelect');
-  if (sortSel) sortSel.value = state.stockSort || 'product';
+  if (sortSel) sortSel.value = state.stockSort || 'catalog';
   const groupSel = document.getElementById('stockGroupSelect');
   if (groupSel) groupSel.value = _stockGroupBy;
 
@@ -4652,9 +4707,11 @@ function toggleStockGroup(name) {
 // Ordena el catálogo según state.stockSort. El precio se mira en la lista
 // activa; los productos sin precio van al final. Empates: por nombre A→Z.
 function sortStockData(data) {
-  const s = state.stockSort || 'product';
+  const s = state.stockSort || 'catalog';
   const byName = (a, b) => (a.product || '').localeCompare(b.product || '', 'es');
-  if (s === 'marca' || s === 'rubro') {
+  if (s === 'catalog') {
+    data.sort(makeCatalogCmp());
+  } else if (s === 'marca' || s === 'rubro') {
     data.sort((a, b) =>
       (a[s] || 'zzz').localeCompare(b[s] || 'zzz', 'es') || byName(a, b));
   } else if (s === 'qty_desc' || s === 'qty_asc') {
