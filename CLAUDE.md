@@ -150,8 +150,9 @@ Dos canales equivalentes, según haya nube o no:
 - **Catálogo (central → vendedor)** = `vendor_data_v2`:
   ```
   { _app:"StockMerger", _type:"vendor_data_v2", _version:2, _exportedAt,
-    stock:  [ { _key, product, qty, marca, rubro }, ... ],
-    prices: { act:{key:{label,marca,rubro,price}}, dist:{...}, vip:{...} } }
+    stock:  [ { _key, product, qty, marca, rubro }, ... ],   // en orden catálogo
+    prices: { act:{key:{label,marca,rubro,price}}, dist:{...}, vip:{...} },
+    order:  { rubros:[...], marcas:[...] } }   // ADITIVO: prioridad del catálogo
   ```
   Lo genera `buildVendorPayload()` (merger) y lo aplica `applyVendorData()`
   (vendedor). `IMPORT.JS` también acepta el formato viejo `vendor_data` (una
@@ -184,6 +185,13 @@ Dos canales equivalentes, según haya nube o no:
   una ficha (`source: 'central'`), lo que mande un vendedor no la pisa.
 - **Excel exportados**: siempre con autofiltro en la fila de cabecera. El
   Excel de Stock de la central incluye las 3 listas + precio China.
+- **Orden catálogo** (jerarquía rubro → marca → modelo correlativo, con
+  números comparados como números: A01 < A01 Core < A02 < A02s < A10): la
+  prioridad de rubros y marcas la define la central (botón 📑 en Stock,
+  `state.catalogOrder`) y viaja en `vendor_data_v2.order` (campo aditivo).
+  Es el orden de los Excel de la central, el orden por defecto del catálogo
+  del vendedor y de la plantilla Excel para clientes. Valores no listados van
+  después (alfabéticos); sin rubro/marca, al final.
 
 ## Notas de desarrollo
 
