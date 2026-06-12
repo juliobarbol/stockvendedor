@@ -99,6 +99,12 @@ Config en `localStorage['sb_config'] = { url, anonKey, ns }`:
 
 Cliente creado con `supabase.createClient(url, anonKey)` (ver `scClient()`).
 
+La sección de conexión de la UI (Home) queda **oculta tras la contraseña
+`opbayressincnube`** una vez configurada (candado anti-miradas, mismo espíritu
+que el gran reset — no es seguridad real). El campo de la key es
+`type="password"` y el resumen solo muestra las últimas 4. Igual en la central
+(pestaña Archivos). Ver `sbLockRefresh()` en SUPABASE.JS de ambos repos.
+
 ### Tablas que toca StockVendedor
 
 | Tabla | Uso desde el vendedor |
