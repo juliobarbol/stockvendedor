@@ -217,6 +217,10 @@ Dos canales equivalentes, según haya nube o no:
 
 ## Notas de desarrollo
 
+- **PENDIENTE ACORDADO CON JULIO (2026-06-12): acceso por persona a la nube**
+  (Supabase Auth + RLS por `ns`). El plan de ejecución completo vive en
+  **`PLAN-ACCESOS.md` del repo de StockMerger** — toca ambas apps (login en
+  la sección de conexión, manejo de sesión, gran reset).
 - No hay tests ni linters; es HTML+JS plano servido estático.
 - Para cambios de catálogo/pedido, verificá la app hermana
   (`juliobarbol/stockmerger`): comparten formato `vendor_data_v2`, esquema de
