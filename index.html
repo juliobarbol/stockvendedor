@@ -1126,6 +1126,23 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 </head>
 <body>
 
+<!-- ══ Pantalla de login (gate de acceso) ══
+     Tapa la app hasta que haya sesión iniciada. Solo aparece si la nube está
+     configurada y no hay sesión guardada. Una vez logueado, persiste y la app
+     funciona también offline (ver authGateRefresh en SUPABASE.JS). -->
+<div id="authGate" style="display:none;position:fixed;inset:0;z-index:99999;background:#0b0f14;flex-direction:column;align-items:center;justify-content:center;padding:1.5rem">
+  <div style="width:100%;max-width:360px;display:flex;flex-direction:column;gap:.7rem;text-align:center">
+    <div style="font-size:2.4rem">🔒</div>
+    <h2 style="margin:0;font-size:1.25rem;color:#e6edf3">Iniciar sesión</h2>
+    <p style="margin:0 0 .3rem;font-size:.8rem;color:#8b98a5">Ingresá con tu usuario para usar la app.</p>
+    <input type="email" id="gateEmail" placeholder="Email" autocomplete="email" style="padding:.7rem;border-radius:8px;border:1px solid #30363d;background:#161b22;color:#e6edf3;font-size:.95rem">
+    <input type="password" id="gatePass" placeholder="Contraseña" autocomplete="current-password" onkeydown="if(event.key==='Enter')authGateLogin()" style="padding:.7rem;border-radius:8px;border:1px solid #30363d;background:#161b22;color:#e6edf3;font-size:.95rem">
+    <button onclick="authGateLogin()" style="padding:.75rem;border-radius:8px;border:none;background:#2ea043;color:#fff;font-size:.95rem;font-weight:600;cursor:pointer">🔑 Entrar</button>
+    <div id="gateStatus" style="min-height:1.1rem;font-size:.78rem;color:#f0883e"></div>
+    <button onclick="authGateConfig()" style="background:none;border:none;color:#8b98a5;font-size:.74rem;text-decoration:underline;cursor:pointer">⚙ Configurar conexión</button>
+  </div>
+</div>
+
 <!-- ══ TAB: INICIO ══ -->
 <div class="tab-page active" id="pageHome">
   <div class="page-scroll">
@@ -2458,7 +2475,11 @@ function scClient() {
 
   try {
     _sbClient = window.supabase.createClient(c.url, c.anonKey, {
-      auth: { persistSession: false },
+      auth: {
+        persistSession: true,        // guarda la sesión en localStorage (login por persona)
+        autoRefreshToken: true,      // renueva el token solo cuando hay internet
+        storageKey: SB_AUTH_KEY,     // sb-<ref>-auth-token (lo lee el gate)
+      },
     });
     _sbClientKey = key;
     return _sbClient;
@@ -2544,6 +2565,9 @@ function sbHideConfig() {
 
 // ── Login / sesión de usuario ──
 const SB_AUTH_KEY = 'sb-dxntcbssxjxtxznkdsot-auth-token';
+let _authGateBypass = false;   // true cuando se abre la config desde el gate
+
+// Sesión "válida ahora" (para el resumen): exige que el token no esté vencido.
 function _sbGetSession() {
   try {
     const raw = localStorage.getItem(SB_AUTH_KEY);
@@ -2554,25 +2578,85 @@ function _sbGetSession() {
     return s;
   } catch { return null; }
 }
+// ¿Hay una sesión GUARDADA? (sin exigir token vigente) — sirve para el gate:
+// offline el token puede estar vencido pero la persona ya se identificó; el
+// refresh token deja que supabase-js lo renueve al recuperar internet.
+function _sbHasStoredSession() {
+  try {
+    const raw = localStorage.getItem(SB_AUTH_KEY);
+    if (!raw) return false;
+    const s = JSON.parse(raw);
+    return !!(s && s.user && s.refresh_token);
+  } catch { return false; }
+}
+// Login compartido por el gate y por el formulario de la sección de conexión.
+async function _sbDoLogin(email, pass) {
+  if (!email || !pass) return { ok:false, msg:'Ingresá email y contraseña.' };
+  if (typeof scLibReady === 'function' && !scLibReady())
+    return { ok:false, msg:'La nube no cargó (¿sin internet?). Conectate e intentá de nuevo.' };
+  const client = scClient();
+  if (!client) return { ok:false, msg:'Primero configurá la conexión a la nube.' };
+  const { error } = await client.auth.signInWithPassword({ email, password: pass });
+  if (error) return { ok:false, msg:'No se pudo iniciar sesión. Verificá email y contraseña.' };
+  return { ok:true };
+}
+
+// Gate de acceso: tapa la app si la nube está configurada y no hay sesión.
+function authGateRefresh() {
+  const gate = document.getElementById('authGate');
+  if (!gate) return;
+  if (_authGateBypass) { gate.style.display = 'none'; document.body.style.overflow = ''; return; }
+  const c = scGetConfig();
+  const cloudOn = !!(c.url && c.anonKey);
+  const show = cloudOn && !_sbHasStoredSession();
+  gate.style.display = show ? 'flex' : 'none';
+  document.body.style.overflow = show ? 'hidden' : '';
+}
+async function authGateLogin() {
+  const email = document.getElementById('gateEmail')?.value?.trim();
+  const pass  = document.getElementById('gatePass')?.value;
+  const st = document.getElementById('gateStatus');
+  if (st) st.textContent = 'Iniciando sesión…';
+  const r = await _sbDoLogin(email, pass);
+  if (!r.ok) { if (st) st.textContent = r.msg; return; }
+  if (st) st.textContent = '';
+  const p = document.getElementById('gatePass'); if (p) p.value = '';
+  _authGateBypass = false;
+  authGateRefresh();
+  if (typeof sbLockRefresh === 'function') sbLockRefresh();
+  if (typeof rtStart === 'function') setTimeout(rtStart, 300);
+  if (typeof flushOrderQueue === 'function') setTimeout(flushOrderQueue, 800);
+}
+// Escape para configurar la conexión (URL/key) cuando aún no hay con qué
+// loguearse. Protegido por la contraseña del candado.
+function authGateConfig() {
+  const pass = prompt('Contraseña para configurar la conexión:');
+  if (pass === null) return;
+  if (pass.trim() !== SB_CFG_PASS) { alert('Contraseña incorrecta.'); return; }
+  _authGateBypass = true;
+  _sbCfgUnlocked = true;
+  authGateRefresh();
+  if (typeof sbLockRefresh === 'function') sbLockRefresh();
+  const box = document.getElementById('sbConfigBox');
+  if (box && box.scrollIntoView) box.scrollIntoView({ behavior:'smooth', block:'center' });
+}
+
 async function sbLogin() {
   const email = document.getElementById('sbLoginEmail')?.value?.trim();
   const pass  = document.getElementById('sbLoginPass')?.value;
-  if (!email || !pass) { scStatus('Ingresá email y contraseña.', 'err'); return; }
-  const client = scClient();
-  if (!client) { scStatus('Primero configurá la conexión a la nube.', 'err'); return; }
   scStatus('Iniciando sesión…', '');
-  const { error } = await client.auth.signInWithPassword({ email, password: pass });
-  if (error) {
-    scStatus('No se pudo iniciar sesión. Verificá email y contraseña.', 'err');
-  } else {
-    scStatus('Sesión iniciada ✓', 'ok');
-    sbLockRefresh();
-  }
+  const r = await _sbDoLogin(email, pass);
+  if (!r.ok) { scStatus(r.msg, 'err'); return; }
+  scStatus('Sesión iniciada ✓', 'ok');
+  authGateRefresh();
+  sbLockRefresh();
 }
 async function sbLogout() {
   const client = scClient();
   if (client) await client.auth.signOut();
   scStatus('Sesión cerrada.', '');
+  _authGateBypass = false;
+  authGateRefresh();
   sbLockRefresh();
 }
 
@@ -2856,6 +2940,7 @@ function scInitUI() {
   if (k) k.value = c.anonKey;
   if (n) n.value = c.ns;
   sbLockRefresh();
+  authGateRefresh();
 
   if (!scLibReady()) {
     scStatus('Modo offline: la nube no cargó. La app funciona igual; importá el archivo.', '');
