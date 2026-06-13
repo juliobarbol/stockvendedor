@@ -113,11 +113,21 @@ tienda (`central` / `vendor`) en la tabla `user_stores`. Las policies
 consultan ese rol con el helper `store_role(ns)`; sin sesión iniciada
 (`auth.uid()` null) no se ve ni se toca nada.
 
-- **Login en la UI**: dentro del candado de la sección de conexión hay un
-  formulario email + contraseña (`sbLogin()` → `signInWithPassword`). Si hay
-  sesión, muestra el email y un botón "Cerrar sesión" (`sbLogout()`). El estado
-  lo refresca `sbLockRefresh()` con `_sbGetSession()`. La sesión persiste sola
-  en `localStorage` (`sb-<ref>-auth-token`) — compatible con el modo offline.
+- **Gate de login al abrir** (`#authGate`, `authGateRefresh()`): si la nube
+  está configurada y NO hay sesión guardada, una pantalla tapa la app hasta
+  iniciar sesión (`authGateLogin()`). No bloquea el modo file-only (sin nube
+  configurada no aparece). Botón "Configurar conexión" (`authGateConfig()`,
+  tras la contraseña del candado) para cargar URL/key la primera vez.
+- **Persistencia**: `scClient()` crea el cliente con `persistSession: true` +
+  `autoRefreshToken: true` + `storageKey: SB_AUTH_KEY`. La sesión queda en
+  `localStorage` (`sb-<ref>-auth-token`) y sobrevive recargas; offline el token
+  vencido se renueva solo al recuperar internet. El gate usa
+  `_sbHasStoredSession()` (presencia, sin exigir token vigente) para no
+  desloguear al vendedor sin señal.
+- **Login también en la sección de conexión**: dentro del candado hay el mismo
+  formulario (`sbLogin()`); muestra el email y "Cerrar sesión" (`sbLogout()`,
+  re-muestra el gate). Estado refrescado por `sbLockRefresh()` con
+  `_sbGetSession()`.
 - **El vendedor**: solo puede LEER `catalog` e INSERTAR en `orders`/`clients`
   de su `ns` (no borra, no ve pedidos ajenos ni las tablas solo-central).
 - **Gran reset**: conserva la clave de sesión (`sb-<ref>-auth-token`) en
