@@ -1161,7 +1161,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
         <label>Código corto (3-4 letras)</label>
         <input type="text" id="homeUserCode" placeholder="Ej: JUA" autocomplete="off" maxlength="6" style="text-transform:uppercase">
       </div>
-      <button class="btn-save-config" onclick="saveUserConfig()">Guardar</button>
+      <button class="btn-save-config" id="saveUserBtn" onclick="saveUserConfig()">Guardar</button>
+      <p class="info-text" id="homeIdentityNote" style="display:none">🔒 Tu nombre y código vienen de tu cuenta. No se pueden cambiar acá (así no se duplican vendedores). Si hay un error, avisale a la central.</p>
     </div>
 
     <div class="config-section">
@@ -2589,6 +2590,35 @@ function _sbHasStoredSession() {
     return !!(s && s.user && s.refresh_token);
   } catch { return false; }
 }
+// Usuario guardado (aunque el token esté vencido) — sirve para leer la
+// identidad fija de la cuenta también offline.
+function _sbStoredUser() {
+  try {
+    const raw = localStorage.getItem(SB_AUTH_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    return s?.user || null;
+  } catch { return null; }
+}
+// Nombre + código corto FIJOS de la cuenta (app_metadata, que el propio
+// usuario NO puede editar). Si la cuenta los trae, pisan state.user para que
+// la identidad del vendedor sea única y no se puedan crear vendedores nuevos
+// editando el nombre a mano. Devuelve true si la identidad viene de la cuenta.
+function _sbAccountIdentity() {
+  const meta = _sbStoredUser()?.app_metadata || {};
+  const name = meta.vendor_name || '';
+  const code = meta.vendor_code || '';
+  return (name || code) ? { name, code } : null;
+}
+function applyVendorIdentity() {
+  const id = _sbAccountIdentity();
+  if (!id) return false;
+  let changed = false;
+  if (state.user.name !== id.name) { state.user.name = id.name; changed = true; }
+  if (state.user.code !== id.code) { state.user.code = id.code; changed = true; }
+  if (changed && typeof saveUser === 'function') saveUser();
+  return true;
+}
 // Login compartido por el gate y por el formulario de la sección de conexión.
 async function _sbDoLogin(email, pass) {
   if (!email || !pass) return { ok:false, msg:'Ingresá email y contraseña.' };
@@ -2622,6 +2652,8 @@ async function authGateLogin() {
   if (st) st.textContent = '';
   const p = document.getElementById('gatePass'); if (p) p.value = '';
   _authGateBypass = false;
+  applyVendorIdentity();
+  if (typeof renderHomeTab === 'function') renderHomeTab();
   authGateRefresh();
   if (typeof sbLockRefresh === 'function') sbLockRefresh();
   if (typeof rtStart === 'function') setTimeout(rtStart, 300);
@@ -2648,6 +2680,8 @@ async function sbLogin() {
   const r = await _sbDoLogin(email, pass);
   if (!r.ok) { scStatus(r.msg, 'err'); return; }
   scStatus('Sesión iniciada ✓', 'ok');
+  applyVendorIdentity();
+  if (typeof renderHomeTab === 'function') renderHomeTab();
   authGateRefresh();
   sbLockRefresh();
 }
@@ -2941,6 +2975,7 @@ function scInitUI() {
   if (n) n.value = c.ns;
   sbLockRefresh();
   authGateRefresh();
+  applyVendorIdentity();   // si hay sesión con identidad de cuenta, la fija ya
 
   if (!scLibReady()) {
     scStatus('Modo offline: la nube no cargó. La app funciona igual; importá el archivo.', '');
@@ -4763,10 +4798,25 @@ function switchTab(tab) {
 // ══ HOME / CONFIGURACIÓN ══
 
 function renderHomeTab() {
+  applyVendorIdentity();   // si hay sesión, fija nombre + código de la cuenta
   const nameEl = document.getElementById('homeUserName');
   const codeEl = document.getElementById('homeUserCode');
   if (nameEl) nameEl.value = state.user.name || '';
   if (codeEl) codeEl.value = state.user.code || '';
+
+  // Identidad bloqueada: si viene de la cuenta, los campos no se editan y se
+  // esconde el botón Guardar (se evita que se "creen" vendedores nuevos a mano).
+  const locked = !!_sbAccountIdentity();
+  const btn  = document.getElementById('saveUserBtn');
+  const note = document.getElementById('homeIdentityNote');
+  [nameEl, codeEl].forEach(el => {
+    if (!el) return;
+    el.readOnly = locked;
+    el.style.opacity = locked ? '0.7' : '';
+    el.style.cursor  = locked ? 'not-allowed' : '';
+  });
+  if (btn)  btn.style.display  = locked ? 'none' : '';
+  if (note) note.style.display = locked ? 'block' : 'none';
 
   const stockInfo = document.getElementById('homeStockInfo');
   if (stockInfo) {
@@ -4799,6 +4849,8 @@ function renderHomeTab() {
 }
 
 function saveUserConfig() {
+  // Si la identidad viene de la cuenta, no se toca a mano.
+  if (_sbAccountIdentity()) { applyVendorIdentity(); renderHomeTab(); return; }
   const name = document.getElementById('homeUserName').value.trim();
   const code = document.getElementById('homeUserCode').value.trim().toUpperCase();
   if (!name) { toast('Escribí tu nombre', 'err'); return; }

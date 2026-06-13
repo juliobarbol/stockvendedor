@@ -208,5 +208,11 @@ create policy "backups central delete" on storage.objects for delete to authenti
 --   Alta:  crear el usuario en Auth (Admin API) y luego:
 --          insert into user_stores(user_id, ns, role, vendor)
 --            values ('<uuid>', 'default', 'vendor', 'Nombre Visible');
+--          -- Identidad FIJA del vendedor (la app la autocompleta y bloquea):
+--          -- guardar nombre + código corto en app_metadata (el usuario NO los
+--          -- puede editar). La app del vendedor los lee de la sesión.
+--          update auth.users set raw_app_meta_data = raw_app_meta_data
+--            || '{"vendor_name":"Nombre Visible","vendor_code":"NOM"}'::jsonb
+--            where id = '<uuid>';
 --   Baja:  borrar el usuario de Auth (la fila de user_stores cae sola por el
 --          ON DELETE CASCADE). Su teléfono queda sin acceso al instante.

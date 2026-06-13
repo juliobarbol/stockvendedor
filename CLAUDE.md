@@ -130,6 +130,15 @@ consultan ese rol con el helper `store_role(ns)`; sin sesión iniciada
   `_sbGetSession()`.
 - **El vendedor**: solo puede LEER `catalog` e INSERTAR en `orders`/`clients`
   de su `ns` (no borra, no ve pedidos ajenos ni las tablas solo-central).
+- **Identidad fija por cuenta** (HECHO 2026-06-13): el nombre y el código corto
+  del vendedor ya NO se escriben a mano. Se guardan en `app_metadata`
+  (`vendor_name` / `vendor_code`) del usuario de Auth — que el propio usuario NO
+  puede editar — y al iniciar sesión la app los autocompleta en "Tu identidad"
+  y deja los campos **bloqueados** (sin botón Guardar). Así no se duplican
+  vendedores por editar el nombre. Helpers: `_sbAccountIdentity()` lee la
+  identidad de la sesión guardada (sirve también offline) y `applyVendorIdentity()`
+  la fija en `state.user` (se llama en login, `scInitUI` y `renderHomeTab`).
+  Alta: además de `user_stores`, setear `app_metadata` (ver `schema.sql`).
 - **Gran reset**: conserva la clave de sesión (`sb-<ref>-auth-token`) en
   `GRAN_RESET_KEEP`, igual que `sb_config`, para no desloguear.
 - **Alta/baja de personas**: crear/borrar el usuario en Supabase Auth y su fila
