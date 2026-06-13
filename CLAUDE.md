@@ -105,6 +105,27 @@ que el gran reset — no es seguridad real). El campo de la key es
 `type="password"` y el resumen solo muestra las últimas 4. Igual en la central
 (pestaña Archivos). Ver `sbLockRefresh()` en SUPABASE.JS de ambos repos.
 
+### Acceso por persona (Supabase Auth + RLS) — HECHO (2026-06-13)
+
+La anon key **ya NO abre la base por sí sola**: hay RLS real por rol. Cada
+persona tiene un usuario de Supabase Auth (email + contraseña) y un rol por
+tienda (`central` / `vendor`) en la tabla `user_stores`. Las policies
+consultan ese rol con el helper `store_role(ns)`; sin sesión iniciada
+(`auth.uid()` null) no se ve ni se toca nada.
+
+- **Login en la UI**: dentro del candado de la sección de conexión hay un
+  formulario email + contraseña (`sbLogin()` → `signInWithPassword`). Si hay
+  sesión, muestra el email y un botón "Cerrar sesión" (`sbLogout()`). El estado
+  lo refresca `sbLockRefresh()` con `_sbGetSession()`. La sesión persiste sola
+  en `localStorage` (`sb-<ref>-auth-token`) — compatible con el modo offline.
+- **El vendedor**: solo puede LEER `catalog` e INSERTAR en `orders`/`clients`
+  de su `ns` (no borra, no ve pedidos ajenos ni las tablas solo-central).
+- **Gran reset**: conserva la clave de sesión (`sb-<ref>-auth-token`) en
+  `GRAN_RESET_KEEP`, igual que `sb_config`, para no desloguear.
+- **Alta/baja de personas**: crear/borrar el usuario en Supabase Auth y su fila
+  en `user_stores` (con la service_role key o la Management API). El detalle
+  está en `schema.sql` del repo de StockMerger (sección AUTH + RLS).
+
 ### Tablas que toca StockVendedor
 
 | Tabla | Uso desde el vendedor |
@@ -217,10 +238,10 @@ Dos canales equivalentes, según haya nube o no:
 
 ## Notas de desarrollo
 
-- **PENDIENTE ACORDADO CON JULIO (2026-06-12): acceso por persona a la nube**
-  (Supabase Auth + RLS por `ns`). El plan de ejecución completo vive en
-  **`PLAN-ACCESOS.md` del repo de StockMerger** — toca ambas apps (login en
-  la sección de conexión, manejo de sesión, gran reset).
+- **HECHO (2026-06-13): acceso por persona a la nube** (Supabase Auth + RLS por
+  rol). Ver la sección "Acceso por persona" en "Conexión con la nube" (arriba).
+  El vendedor solo lee catálogo e inserta pedidos/fichas de su `ns`; necesita
+  iniciar sesión (email + contraseña) en la sección de conexión.
 - No hay tests ni linters; es HTML+JS plano servido estático.
 - Para cambios de catálogo/pedido, verificá la app hermana
   (`juliobarbol/stockmerger`): comparten formato `vendor_data_v2`, esquema de

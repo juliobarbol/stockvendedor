@@ -105,18 +105,37 @@ exception when others then null; end $$;
 
 -- ════════════════════════════════════════════════════════════════════
 -- Storage: bucket `backups` (snapshots de la Capa 2 de BACKUPS.JS)
--- Crearlo desde el dashboard (Storage → New bucket → "backups", privado)
--- con policies de insert/select/delete para el rol anon (o el rol que
--- corresponda cuando se active Auth).
+-- Crearlo desde el dashboard (Storage → New bucket → "backups", privado).
+-- Sus policies se definen abajo, junto con el resto del RLS (solo central).
 -- ════════════════════════════════════════════════════════════════════
 
 -- ════════════════════════════════════════════════════════════════════
--- RLS — estado actual y endurecimiento pendiente
+-- AUTH + RLS — acceso por persona (resuelve el hallazgo C1 de AUDITORIA.md)
 -- ════════════════════════════════════════════════════════════════════
--- ESTADO ACTUAL (arranque): policies abiertas. Cualquiera con la anon key
--- puede leer/escribir cualquier ns. Aceptado como riesgo de arranque para
--- un negocio chico con la key solo en las apps propias, pero ES EL PRINCIPAL
--- PENDIENTE DE SEGURIDAD (ver AUDITORIA.md, hallazgo C1).
+-- MODELO: cada persona tiene un usuario de Supabase Auth (email + contraseña)
+-- y un rol por tienda ('central' o 'vendor') en `user_stores`. Las policies
+-- consultan ese rol con el helper store_role(). Sin sesión iniciada,
+-- auth.uid() es null → store_role() devuelve null → NO se ve ni se toca nada
+-- (la anon key sola ya no abre la base). Alta/baja de personas = crear/borrar
+-- el usuario de Auth y su fila en user_stores.
+
+-- Membresía: qué rol tiene cada usuario en cada tienda (ns).
+create table if not exists user_stores (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  ns      text not null,
+  role    text not null check (role = 'central' or role = 'vendor'),
+  vendor  text,                              -- nombre visible (auditoría/UI)
+  primary key (user_id, ns)
+);
+alter table user_stores enable row level security;
+-- Sin policies para authenticated/anon: solo la lee el helper (security definer).
+
+-- Helper: rol del usuario actual en una tienda. SECURITY DEFINER para poder
+-- leer user_stores sin exponerla por RLS.
+create or replace function public.store_role(p_ns text)
+returns text language sql stable security definer set search_path = public as
+$$ select role from user_stores where user_id = auth.uid() and ns = p_ns $$;
+
 alter table catalog            enable row level security;
 alter table orders             enable row level security;
 alter table catalog_items      enable row level security;
@@ -125,41 +144,69 @@ alter table settings           enable row level security;
 alter table received_orders    enable row level security;
 alter table clients            enable row level security;
 
-do $$ begin
-  create policy "catalog_read"   on catalog for select using (true);
-  create policy "catalog_insert" on catalog for insert with check (true);
-  create policy "catalog_update" on catalog for update using (true) with check (true);
-exception when duplicate_object then null; end $$;
+-- catalog (id = ns): vendedor LEE; central todo.
+drop policy if exists catalog_read   on catalog;
+drop policy if exists catalog_insert on catalog;
+drop policy if exists catalog_update on catalog;
+drop policy if exists catalog_delete on catalog;
+create policy catalog_read   on catalog for select to authenticated using (store_role(id) in ('central','vendor'));
+create policy catalog_insert on catalog for insert to authenticated with check (store_role(id) = 'central');
+create policy catalog_update on catalog for update to authenticated using (store_role(id) = 'central') with check (store_role(id) = 'central');
+create policy catalog_delete on catalog for delete to authenticated using (store_role(id) = 'central');
 
-do $$ begin
-  create policy "orders_read"   on orders for select using (true);
-  create policy "orders_insert" on orders for insert with check (true);
-exception when duplicate_object then null; end $$;
+-- orders (ns): vendedor INSERTA; central LEE/BORRA (el borrado lo usa el gran reset).
+drop policy if exists orders_read   on orders;
+drop policy if exists orders_insert on orders;
+drop policy if exists orders_delete on orders;
+create policy orders_read   on orders for select to authenticated using (store_role(ns) = 'central');
+create policy orders_insert on orders for insert to authenticated with check (store_role(ns) in ('central','vendor'));
+create policy orders_delete on orders for delete to authenticated using (store_role(ns) = 'central');
 
--- Borrado: lo usa el "🧨 Gran reset" de la central para limpiar los datos
--- de prueba al pasar a uso real. Mismo riesgo aceptado que el resto de las
--- policies abiertas de arranque (ver nota de RLS más arriba).
-do $$ begin
-  create policy "orders_delete"  on orders  for delete using (true);
-  create policy "catalog_delete" on catalog for delete using (true);
-exception when duplicate_object then null; end $$;
+-- clients (ns): vendedor inserta/actualiza/lee; borra solo central (los borrados no viajan).
+drop policy if exists clients_all    on clients;
+drop policy if exists clients_read   on clients;
+drop policy if exists clients_insert on clients;
+drop policy if exists clients_update on clients;
+drop policy if exists clients_delete on clients;
+create policy clients_read   on clients for select to authenticated using (store_role(ns) in ('central','vendor'));
+create policy clients_insert on clients for insert to authenticated with check (store_role(ns) in ('central','vendor'));
+create policy clients_update on clients for update to authenticated using (store_role(ns) in ('central','vendor')) with check (store_role(ns) in ('central','vendor'));
+create policy clients_delete on clients for delete to authenticated using (store_role(ns) = 'central');
 
-do $$ begin
-  create policy "catalog_items_all"     on catalog_items     for all using (true) with check (true);
-  create policy "rubro_multipliers_all" on rubro_multipliers for all using (true) with check (true);
-  create policy "settings_all"          on settings          for all using (true) with check (true);
-  create policy "received_orders_all"   on received_orders   for all using (true) with check (true);
-exception when duplicate_object then null; end $$;
+-- Tablas solo-central (sync entre dispositivos de la central + backups).
+drop policy if exists catalog_items_all     on catalog_items;
+drop policy if exists rubro_multipliers_all on rubro_multipliers;
+drop policy if exists settings_all          on settings;
+drop policy if exists received_orders_all   on received_orders;
+create policy catalog_items_all     on catalog_items     for all to authenticated using (store_role(ns) = 'central') with check (store_role(ns) = 'central');
+create policy rubro_multipliers_all on rubro_multipliers for all to authenticated using (store_role(ns) = 'central') with check (store_role(ns) = 'central');
+create policy settings_all          on settings          for all to authenticated using (store_role(ns) = 'central') with check (store_role(ns) = 'central');
+create policy received_orders_all   on received_orders   for all to authenticated using (store_role(ns) = 'central') with check (store_role(ns) = 'central');
 
-do $$ begin
-  create policy "clients_all" on clients for all using (true) with check (true);
-exception when duplicate_object then null; end $$;
+-- backups (tabla): solo central.
+drop policy if exists bk_read   on backups;
+drop policy if exists bk_insert on backups;
+drop policy if exists bk_delete on backups;
+drop policy if exists backups_all on backups;
+create policy backups_all on backups for all to authenticated using (store_role(ns) = 'central') with check (store_role(ns) = 'central');
 
--- ENDURECIMIENTO RECOMENDADO (fase futura, requiere Supabase Auth):
---   1. Crear tabla de membresía: user_stores(user_id uuid, ns text).
---   2. Reemplazar las policies de arriba por filtrado real por ns, p. ej.:
---        create policy "orders_read" on orders for select
---          using (ns in (select ns from user_stores where user_id = auth.uid()));
---   3. Vendedores: solo INSERT en orders + SELECT en catalog de su ns.
---      Central: todo lo demás, solo de su ns.
---   4. Rotar la anon key después del cambio (la actual está distribuida).
+-- Storage bucket "backups": solo central. El ns es la primera carpeta del path (<ns>/archivo).
+drop policy if exists "backups anon select" on storage.objects;
+drop policy if exists "backups anon insert" on storage.objects;
+drop policy if exists "backups anon delete" on storage.objects;
+drop policy if exists "backups central select" on storage.objects;
+drop policy if exists "backups central insert" on storage.objects;
+drop policy if exists "backups central delete" on storage.objects;
+create policy "backups central select" on storage.objects for select to authenticated
+  using (bucket_id = 'backups' and store_role((storage.foldername(name))[1]) = 'central');
+create policy "backups central insert" on storage.objects for insert to authenticated
+  with check (bucket_id = 'backups' and store_role((storage.foldername(name))[1]) = 'central');
+create policy "backups central delete" on storage.objects for delete to authenticated
+  using (bucket_id = 'backups' and store_role((storage.foldername(name))[1]) = 'central');
+
+-- ALTA / BAJA DE PERSONAS (operar con la service_role key o la Management API):
+--   Alta:  crear el usuario en Auth (Admin API) y luego:
+--          insert into user_stores(user_id, ns, role, vendor)
+--            values ('<uuid>', 'default', 'vendor', 'Nombre Visible');
+--   Baja:  borrar el usuario de Auth (la fila de user_stores cae sola por el
+--          ON DELETE CASCADE). Su teléfono queda sin acceso al instante.
