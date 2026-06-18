@@ -3756,11 +3756,22 @@ function setActiveList(newList, opts) {
   if (typeof renderStockTab === 'function') renderStockTab();
 }
 
+// Topes "anti-absurdo" de un pedido. NO son límites de negocio (superar el
+// stock se permite con confirmación, es venta sobre pedido): son un techo para
+// que un tipeo (p. ej. pegar un código de barras en la cantidad) o un abuso no
+// generen pedidos demenciales. La central también los re-valida al importar.
+const MAX_QTY_PER_LINE   = 100000; // unidades por producto
+const MAX_ITEMS_PER_ORDER = 3000;  // productos distintos por pedido
+
 // Agregar producto al pedido actual
 function addToOrder(key, qty) {
   qty = parseInt(qty);
   if (!qty || qty < 1) {
     toast('Cantidad inválida', 'err');
+    return false;
+  }
+  if (qty > MAX_QTY_PER_LINE) {
+    toast(`Cantidad demasiado alta (máximo ${MAX_QTY_PER_LINE.toLocaleString('es-AR')} por producto)`, 'err');
     return false;
   }
 
@@ -3785,6 +3796,17 @@ function addToOrder(key, qty) {
   const existing = state.currentOrder.items.find(i => i.key === key);
   const previaEnPedido = existing ? existing.qty : 0;
   const qtyAcumulada   = previaEnPedido + qty;
+
+  // Tope acumulado por línea (contar lo previo evita esquivarlo agregando de a poco).
+  if (qtyAcumulada > MAX_QTY_PER_LINE) {
+    toast(`Cantidad demasiado alta (máximo ${MAX_QTY_PER_LINE.toLocaleString('es-AR')} por producto)`, 'err');
+    return false;
+  }
+  // Tope de productos distintos por pedido (solo aplica al agregar uno nuevo).
+  if (!existing && state.currentOrder.items.length >= MAX_ITEMS_PER_ORDER) {
+    toast(`El pedido ya tiene el máximo de ${MAX_ITEMS_PER_ORDER.toLocaleString('es-AR')} productos distintos`, 'err');
+    return false;
+  }
 
   if (qtyAcumulada > disponible) {
     const ctx = previaEnPedido > 0
@@ -3857,6 +3879,13 @@ function updateOrderItem(key, newQty) {
     return;
   }
   const newQtyNum = parsed;
+
+  // Tope "anti-absurdo" por línea: rechazar y dejar la cantidad anterior.
+  if (newQtyNum > MAX_QTY_PER_LINE) {
+    toast(`Cantidad demasiado alta (máximo ${MAX_QTY_PER_LINE.toLocaleString('es-AR')} por producto)`, 'err');
+    renderOrderTab();
+    return;
+  }
 
   // Validar contra stock disponible (igual que en addToOrder).
   // Si supera, pedir confirmación al usuario antes de aplicar.
