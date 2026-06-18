@@ -97,6 +97,24 @@ create table if not exists clients (
 );
 create unique index if not exists clients_ns_client_uq on clients (ns, client_id);
 
+-- ── Límites de tamaño/forma (F5 de la auditoría 2026-06-18) ──
+-- Las policies RLS controlan QUIÉN escribe; estos CHECK controlan QUÉ. Evitan
+-- que un vendedor autenticado (o un Excel/payload manipulado) infle la base
+-- con un payload enorme o textos absurdos. Topes generosos: un pedido real
+-- pesa ~4 KB. Idempotentes (drop+add). octet_length sobre el texto del jsonb.
+alter table orders  drop constraint if exists orders_payload_size;
+alter table orders  add  constraint orders_payload_size check (octet_length(payload::text) <= 1048576); -- 1 MB
+alter table orders  drop constraint if exists orders_vendor_len;
+alter table orders  add  constraint orders_vendor_len   check (vendor is null or char_length(vendor) <= 200);
+alter table orders  drop constraint if exists orders_client_len;
+alter table orders  add  constraint orders_client_len   check (client is null or char_length(client) <= 200);
+alter table clients drop constraint if exists clients_name_len;
+alter table clients add  constraint clients_name_len    check (char_length(name) <= 200);
+alter table clients drop constraint if exists clients_vendor_len;
+alter table clients add  constraint clients_vendor_len  check (vendor is null or char_length(vendor) <= 200);
+alter table clients drop constraint if exists clients_list_chk;
+alter table clients add  constraint clients_list_chk    check (list in ('act','dist','vip'));
+
 -- Realtime para avisar a la central al instante (best-effort: si la
 -- publication no existe o ya estaba agregada, se ignora el error).
 do $$ begin
