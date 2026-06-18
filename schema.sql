@@ -129,6 +129,12 @@ create table if not exists user_stores (
 );
 alter table user_stores enable row level security;
 -- Sin policies para authenticated/anon: solo la lee el helper (security definer).
+-- ⚠️ CRÍTICO: esta tabla DECIDE quién es central/vendor → si su RLS queda
+-- apagado, cualquiera con la anon key puede leer/editar/borrar los roles
+-- (escalar a 'central' o dejar a todos sin acceso). Defensa en profundidad:
+-- además de RLS, se revocan TODOS los grants de anon/authenticated. El helper
+-- store_role() es SECURITY DEFINER, así que sigue leyéndola igual.
+revoke all on user_stores from anon, authenticated;
 
 -- Helper: rol del usuario actual en una tienda. SECURITY DEFINER para poder
 -- leer user_stores sin exponerla por RLS.
