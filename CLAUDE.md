@@ -118,6 +118,20 @@ consultan ese rol con el helper `store_role(ns)`; sin sesión iniciada
   iniciar sesión (`authGateLogin()`). No bloquea el modo file-only (sin nube
   configurada no aparece). Botón "Configurar conexión" (`authGateConfig()`,
   tras la contraseña del candado) para cargar URL/key la primera vez.
+- **Captcha en el login (Cloudflare Turnstile) — HECHO (2026-06-19)**: ambas
+  pantallas de login (gate `#gateCaptcha` y sección de conexión
+  `#sbLoginCaptcha`) muestran un widget Turnstile; el token viaja en
+  `signInWithPassword({ options:{ captchaToken } })` y Supabase lo valida con la
+  **clave secreta** (en `config/auth`, `security_captcha_provider:'turnstile'`,
+  **NUNCA en el código** — el repo es público). La **Site Key** sí va en el HTML
+  (`TURNSTILE_SITEKEY`, es pública por diseño). Helpers en SUPABASE.JS:
+  `_loadTurnstile` / `_ensureCaptcha` / `_captchaToken` / `_captchaReset`.
+  Degrada con gracia: si el script no carga, el login sigue sin token. Solo
+  protege el **inicio de sesión** (no el refresh ni las sesiones ya abiertas) y
+  no aparece en modo file-only. **Kill-switch**: `security_captcha_enabled` en
+  Supabase (Management API) lo apaga al instante sin redeploy. El alta de
+  personas no cambia. El widget Turnstile vive en la cuenta Cloudflare de Julio
+  (hostnames `stockmerger.*` y `stockvendedor.*.workers.dev`).
 - **Persistencia**: `scClient()` crea el cliente con `persistSession: true` +
   `autoRefreshToken: true` + `storageKey: SB_AUTH_KEY`. La sesión queda en
   `localStorage` (`sb-<ref>-auth-token`) y sobrevive recargas; offline el token
