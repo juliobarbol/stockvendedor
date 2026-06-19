@@ -1137,6 +1137,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     <p style="margin:0 0 .3rem;font-size:.8rem;color:#8b98a5">Ingresá con tu usuario para usar la app.</p>
     <input type="email" id="gateEmail" placeholder="Email" autocomplete="email" style="padding:.7rem;border-radius:8px;border:1px solid #30363d;background:#161b22;color:#e6edf3;font-size:.95rem">
     <input type="password" id="gatePass" placeholder="Contraseña" autocomplete="current-password" onkeydown="if(event.key==='Enter')authGateLogin()" style="padding:.7rem;border-radius:8px;border:1px solid #30363d;background:#161b22;color:#e6edf3;font-size:.95rem">
+    <div id="gateCaptcha" style="display:flex;justify-content:center;min-height:1px"></div>
     <button onclick="authGateLogin()" style="padding:.75rem;border-radius:8px;border:none;background:#2ea043;color:#fff;font-size:.95rem;font-weight:600;cursor:pointer">🔑 Entrar</button>
     <div id="gateStatus" style="min-height:1.1rem;font-size:.78rem;color:#f0883e"></div>
     <button onclick="authGateConfig()" style="background:none;border:none;color:#8b98a5;font-size:.74rem;text-decoration:underline;cursor:pointer">⚙ Configurar conexión</button>
@@ -1206,6 +1207,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
             <p class="info-text" style="margin:0 0 .2rem">Ingresá con tu usuario para sincronizar:</p>
             <input type="email" id="sbLoginEmail" placeholder="Email" autocomplete="email">
             <input type="password" id="sbLoginPass" placeholder="Contraseña" autocomplete="current-password" onkeydown="if(event.key==='Enter')sbLogin()">
+            <div id="sbLoginCaptcha" style="display:flex;justify-content:center;min-height:1px"></div>
             <button class="btn-save-config" onclick="sbLogin()">🔑 Iniciar sesión</button>
           </div>
         </div>
@@ -2546,6 +2548,7 @@ function sbLockRefresh() {
     const sessionInfo = document.getElementById('sbSessionInfo');
     if (loginForm)   loginForm.style.display   = sess ? 'none' : 'flex';
     if (sessionInfo) sessionInfo.style.display = sess ? ''     : 'none';
+    if (!sess) _ensureCaptcha('sbLoginCaptcha');
     const emailEl = document.getElementById('sbSessionEmail');
     if (emailEl && sess) emailEl.textContent = sess.user?.email || '';
   }
@@ -2619,15 +2622,75 @@ function applyVendorIdentity() {
   if (changed && typeof saveUser === 'function') saveUser();
   return true;
 }
+// ── Captcha de login (auditoría F2): Cloudflare Turnstile ──
+// Protege el inicio de sesión contra fuerza bruta. El token viaja a Supabase
+// en signInWithPassword({ options:{ captchaToken } }); Supabase lo valida con
+// la clave SECRETA (guardada SOLO en el server, nunca acá). La Site Key es
+// pública por diseño. Si el script no carga (sin internet / bloqueado), el
+// login sigue intentándose sin token: con el captcha apagado en el server no
+// molesta, y si está prendido Supabase devuelve un error claro que mostramos.
+const TURNSTILE_SITEKEY = '0x4AAAAAADn5nDWSnFUczyWP';
+let _tsLoading = null;
+function _loadTurnstile() {
+  if (window.turnstile) return Promise.resolve(true);
+  if (_tsLoading) return _tsLoading;
+  _tsLoading = new Promise((resolve) => {
+    const s = document.createElement('script');
+    s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    s.async = true; s.defer = true;
+    s.onload  = () => resolve(true);
+    s.onerror = () => { _tsLoading = null; resolve(false); };
+    document.head.appendChild(s);
+  });
+  return _tsLoading;
+}
+async function _ensureCaptcha(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el || el.dataset.tsId) return;          // sin contenedor o ya renderizado
+  const ok = await _loadTurnstile();
+  if (!ok || !window.turnstile || el.dataset.tsId) return;
+  try {
+    const id = window.turnstile.render(el, {
+      sitekey: TURNSTILE_SITEKEY,
+      callback:           (t) => { el._captchaToken = t;  },
+      'expired-callback': ()  => { el._captchaToken = ''; },
+      'error-callback':   ()  => { el._captchaToken = ''; },
+    });
+    el.dataset.tsId = id;
+  } catch (e) { /* si falla el render, el login sigue sin token */ }
+}
+function _captchaToken(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return '';
+  if (el._captchaToken) return el._captchaToken;
+  try {
+    if (window.turnstile && el.dataset.tsId)
+      return window.turnstile.getResponse(el.dataset.tsId) || '';
+  } catch (e) {}
+  return '';
+}
+function _captchaReset(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el._captchaToken = '';
+  try { if (window.turnstile && el.dataset.tsId) window.turnstile.reset(el.dataset.tsId); } catch (e) {}
+}
+
 // Login compartido por el gate y por el formulario de la sección de conexión.
-async function _sbDoLogin(email, pass) {
+async function _sbDoLogin(email, pass, captchaToken) {
   if (!email || !pass) return { ok:false, msg:'Ingresá email y contraseña.' };
   if (typeof scLibReady === 'function' && !scLibReady())
     return { ok:false, msg:'La nube no cargó (¿sin internet?). Conectate e intentá de nuevo.' };
   const client = scClient();
   if (!client) return { ok:false, msg:'Primero configurá la conexión a la nube.' };
-  const { error } = await client.auth.signInWithPassword({ email, password: pass });
-  if (error) return { ok:false, msg:'No se pudo iniciar sesión. Verificá email y contraseña.' };
+  const options = captchaToken ? { captchaToken } : undefined;
+  const { error } = await client.auth.signInWithPassword({ email, password: pass, options });
+  if (error) {
+    const m = (error.message || '').toLowerCase();
+    if (m.includes('captcha'))
+      return { ok:false, msg:'Completá la verificación "no soy un robot" e intentá de nuevo.' };
+    return { ok:false, msg:'No se pudo iniciar sesión. Verificá email y contraseña.' };
+  }
   return { ok:true };
 }
 
@@ -2641,13 +2704,15 @@ function authGateRefresh() {
   const show = cloudOn && !_sbHasStoredSession();
   gate.style.display = show ? 'flex' : 'none';
   document.body.style.overflow = show ? 'hidden' : '';
+  if (show) _ensureCaptcha('gateCaptcha');
 }
 async function authGateLogin() {
   const email = document.getElementById('gateEmail')?.value?.trim();
   const pass  = document.getElementById('gatePass')?.value;
   const st = document.getElementById('gateStatus');
   if (st) st.textContent = 'Iniciando sesión…';
-  const r = await _sbDoLogin(email, pass);
+  const r = await _sbDoLogin(email, pass, _captchaToken('gateCaptcha'));
+  _captchaReset('gateCaptcha');
   if (!r.ok) { if (st) st.textContent = r.msg; return; }
   if (st) st.textContent = '';
   const p = document.getElementById('gatePass'); if (p) p.value = '';
@@ -2677,7 +2742,8 @@ async function sbLogin() {
   const email = document.getElementById('sbLoginEmail')?.value?.trim();
   const pass  = document.getElementById('sbLoginPass')?.value;
   scStatus('Iniciando sesión…', '');
-  const r = await _sbDoLogin(email, pass);
+  const r = await _sbDoLogin(email, pass, _captchaToken('sbLoginCaptcha'));
+  _captchaReset('sbLoginCaptcha');
   if (!r.ok) { scStatus(r.msg, 'err'); return; }
   scStatus('Sesión iniciada ✓', 'ok');
   applyVendorIdentity();
