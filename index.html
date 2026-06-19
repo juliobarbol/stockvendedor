@@ -2735,7 +2735,31 @@ async function scTestConnection() {
 // DESCARGAR CATÁLOGO — baja la fila de la nube y la aplica con
 // applyVendorData() (mismo camino que importar el archivo .json).
 // ════════════════════════════════════════════════════════════════════
+// Guard anti-spam (auditoría F3 / M8): evita que apretar el botón ☁⬇ varias
+// veces seguidas — o una ráfaga de eventos de Realtime — dispare varias
+// bajadas simultáneas contra la nube. Una sola a la vez + un respiro corto.
+// Mismo espíritu que `_pullOrdersBusy` en la central.
+let _pullingCatalog  = false;
+let _lastCatalogPull = 0;
+const CATALOG_PULL_COOLDOWN = 1500; // ms
+
 async function pullCatalog(opts = {}) {
+  const auto = !!opts.auto;
+  if (_pullingCatalog) return;                         // ya hay una bajada en curso
+  if (Date.now() - _lastCatalogPull < CATALOG_PULL_COOLDOWN) {
+    if (!auto) scStatus('Esperá un momento antes de volver a sincronizar…', '');
+    return;
+  }
+  _pullingCatalog  = true;
+  _lastCatalogPull = Date.now();
+  try {
+    return await _doPullCatalog(opts);
+  } finally {
+    _pullingCatalog = false;
+  }
+}
+
+async function _doPullCatalog(opts = {}) {
   const auto = !!opts.auto; // disparado por Realtime: sin confirmaciones ni toasts ruidosos
   if (!scLibReady()) {
     if (!auto) {
