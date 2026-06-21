@@ -3345,6 +3345,16 @@ try {
 // Al cargar el módulo, intentar subir lo que haya quedado de antes.
 try { _logFlush(); } catch (e) {}
 
+// Disparador de PRUEBA (oculto): abrir la app con #logtest en la dirección
+// genera un error inofensivo que recorre el camino real (window.onerror →
+// event_log) y muestra el código de referencia. Sirve para verificar la
+// bitácora de punta a punta. Sin el marcador, no hace nada.
+try {
+  if (/[?#&]logtest/i.test(location.href)) {
+    setTimeout(() => { throw new Error('Prueba de bitácora (logtest) — ' + LOG_APP); }, 1500);
+  }
+} catch (e) {}
+
 
 // ════════════════════════════════════════════════════════════════════
 // REALTIME.JS — StockVendedor — actualización en tiempo real (Supabase Realtime)
