@@ -332,12 +332,12 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 }
 .csel-trigger::after { content: '▾'; position: absolute; right: .5rem; top: 50%; transform: translateY(-50%); color: var(--muted); }
 .csel-pop {
-  display: none; position: absolute; left: 0; top: calc(100% + .25rem); z-index: 200;
-  min-width: 100%; max-width: 82vw; max-height: 50vh; overflow-y: auto;
+  display: none; position: fixed; z-index: 3000;
+  max-width: 90vw; max-height: 50vh; overflow-y: auto;
   background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
-  box-shadow: 0 10px 30px rgba(0,0,0,.3);
+  box-shadow: 0 10px 30px rgba(0,0,0,.35);
 }
-.csel.open .csel-pop { display: block; }
+.csel-pop.show { display: block; }
 .csel-opt { padding: .6rem .7rem; font-size: .78rem; color: var(--text); cursor: pointer; white-space: nowrap; border-bottom: 1px solid var(--border); }
 .csel-opt:last-child { border-bottom: none; }
 .csel-opt.on { color: var(--accent); font-weight: 700; }
@@ -3639,6 +3639,7 @@ function openClientNameOverlay() {
         .join('');
       sel.innerHTML = '<option value="">— Otro cliente (escribir abajo) —</option>' + opts;
       sel.value = '';
+      refreshSelect(sel);
       row.style.display = 'block';
     } else {
       row.style.display = 'none';
@@ -5499,7 +5500,9 @@ function setStockGroup(val) {
 
 // ── Desplegable propio para <select> (la lista del sistema no se puede pintar).
 // Oculta el <select> nativo pero lo mantiene funcional: al elegir una opción
-// fija su value y dispara su onchange, así la lógica existente no cambia. ──
+// fija su value y dispara su onchange, así la lógica existente no cambia. La
+// lista flota a nivel de página (position:fixed, colgada del <body>) para no
+// quedar recortada dentro de modales o áreas con scroll. ──
 function enhanceSelect(sel) {
   if (!sel || sel._enhanced) return;
   sel._enhanced = true;
@@ -5513,14 +5516,20 @@ function enhanceSelect(sel) {
   const trigger = document.createElement('button');
   trigger.type = 'button';
   trigger.className = 'csel-trigger';
-  const pop = document.createElement('div');
-  pop.className = 'csel-pop';
   wrap.appendChild(trigger);
-  wrap.appendChild(pop);
+
+  const pop = document.createElement('div');   // se cuelga del <body> al abrir
+  pop.className = 'csel-pop';
 
   function syncTrigger() {
     const o = sel.options[sel.selectedIndex];
     trigger.textContent = o ? o.text : '';
+  }
+  function position() {
+    const r = trigger.getBoundingClientRect();
+    pop.style.left = r.left + 'px';
+    pop.style.top = (r.bottom + 4) + 'px';
+    pop.style.minWidth = r.width + 'px';
   }
   function buildPop() {
     pop.innerHTML = '';
@@ -5537,27 +5546,39 @@ function enhanceSelect(sel) {
       pop.appendChild(it);
     });
   }
-  function open() { buildPop(); wrap.classList.add('open'); }
-  function close() { wrap.classList.remove('open'); }
+  function open() {
+    buildPop();
+    document.body.appendChild(pop);
+    position();
+    pop.classList.add('show');
+    pop._open = true;
+  }
+  function close() {
+    pop.classList.remove('show');
+    pop._open = false;
+    if (pop.parentNode) pop.parentNode.removeChild(pop);
+  }
   trigger.addEventListener('click', (e) => {
     e.stopPropagation();
-    wrap.classList.contains('open') ? close() : open();
+    pop._open ? close() : open();
   });
-  document.addEventListener('click', (e) => { if (!wrap.contains(e.target)) close(); });
+  document.addEventListener('click', (e) => {
+    if (pop._open && e.target !== trigger && !pop.contains(e.target)) close();
+  });
+  window.addEventListener('scroll', () => { if (pop._open) close(); }, true);
+  window.addEventListener('resize', () => { if (pop._open) close(); });
   sel.addEventListener('change', syncTrigger);
-  sel._cselSync = syncTrigger;   // para refrescar cuando el value se fija por código
+  sel._cselSync = syncTrigger;
   syncTrigger();
 }
-// Refresca el texto del desplegable tras un cambio de value hecho por código.
+// Refresca el texto del desplegable tras fijar el value por código.
 function refreshSelect(sel) { if (sel && sel._cselSync) sel._cselSync(); }
-function _initCustomSelects() {
-  ['stockSortSelect', 'stockGroupSelect'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) enhanceSelect(el);
-  });
+// Convierte todos los <select> aún no convertidos (incl. los generados dinámicamente).
+function enhanceAllSelects(root) {
+  (root || document).querySelectorAll('select').forEach(enhanceSelect);
 }
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _initCustomSelects);
-else _initCustomSelects();
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', enhanceAllSelects);
+else enhanceAllSelects();
 
 function toggleStockGroup(name) {
   if (_expandedStockGroups.has(name)) _expandedStockGroups.delete(name);
