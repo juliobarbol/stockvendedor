@@ -8,6 +8,30 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="StockVendedor">
 <meta name="theme-color" content="#0d0f14">
+<script>
+/* Tema claro/oscuro: se aplica antes de pintar para evitar parpadeo. */
+(function(){
+  try{
+    var KEY='ui_theme';
+    window.applyTheme=function(t){
+      if(t){try{localStorage.setItem(KEY,t);}catch(e){}}
+      else{try{t=localStorage.getItem(KEY);}catch(e){} t=t||'dark';}
+      document.documentElement.setAttribute('data-theme',t);
+      var m=document.querySelector('meta[name="theme-color"]');
+      if(m)m.setAttribute('content',t==='light'?'#eef1f6':'#0d0f14');
+      var b=document.getElementById('themeToggleBtn');
+      if(b)b.textContent=(t==='light'?'🌙 Modo oscuro':'☀️ Modo claro');
+      return t;
+    };
+    window.toggleTheme=function(){
+      var cur=document.documentElement.getAttribute('data-theme')||'dark';
+      window.applyTheme(cur==='light'?'dark':'light');
+    };
+    window.applyTheme();
+    document.addEventListener('DOMContentLoaded',function(){window.applyTheme();});
+  }catch(e){}
+})();
+</script>
 <title>StockVendedor</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -36,6 +60,19 @@
   --red: #ff4757;
   --blue: #4a90e2;
   --tap: 44px;
+}
+html[data-theme="light"] {
+  --bg: #eef1f6;
+  --surface: #ffffff;
+  --surface2: #f1f4f9;
+  --border: #d4dae6;
+  --text: #1b2533;
+  --muted: #5d6b7e;
+  --accent: #00a06a;
+  --accent2: #d98300;
+  --warn: #b8860b;
+  --red: #e03145;
+  --blue: #2f6fc4;
 }
 html, body {
   background: var(--bg);
@@ -69,6 +106,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   color: var(--accent); letter-spacing: -0.02em;
 }
 .hero-sub { color: var(--muted); margin-top: .35rem; font-size: .78rem; }
+.theme-toggle { margin-top: .85rem; background: var(--surface2); border: 1px solid var(--border); color: var(--text); font-family: inherit; font-size: .72rem; padding: .45rem .9rem; border-radius: 999px; cursor: pointer; min-height: var(--tap); -webkit-tap-highlight-color: transparent; }
+.theme-toggle:active { background: var(--surface); }
 
 /* SECTION */
 .section-title {
@@ -1150,6 +1189,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     <div class="home-hero">
       <h1 class="hero-title">VENDEDOR</h1>
       <p class="hero-sub">configurá tu usuario y descargá los datos de central</p>
+      <button class="theme-toggle" id="themeToggleBtn" onclick="toggleTheme()" type="button">☀️ Modo claro</button>
     </div>
 
     <div class="config-section">
