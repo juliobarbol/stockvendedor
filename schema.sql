@@ -240,3 +240,54 @@ create policy "backups central delete" on storage.objects for delete to authenti
 --            where id = '<uuid>';
 --   Baja:  borrar el usuario de Auth (la fila de user_stores cae sola por el
 --          ON DELETE CASCADE). Su teléfono queda sin acceso al instante.
+
+-- ════════════════════════════════════════════════════════════════════
+-- event_log — bitácora de diagnóstico (errores + contexto + breadcrumbs)
+--   escribe: ambas apps (insert, best-effort) · lee: solo central
+-- ════════════════════════════════════════════════════════════════════
+-- NO es un log de auditoría observable desde la app: es una bitácora REMOTA
+-- para diagnosticar cuando alguien reporta un error. Captura los crashes de
+-- JS (window.onerror / unhandledrejection) y los fallos de las operaciones
+-- riesgosas, con stack completo, contexto del dispositivo (navegador, versión
+-- del cache PWA, online/offline) y "migas de pan" (las últimas acciones antes
+-- del error, en meta.breadcrumbs). Cada evento muestra al usuario un `ref`
+-- corto (ej. A3F9) que lo cita en la base. Append-only: nadie edita/borra
+-- desde la app. Se consulta por la Management API (ver schema/CLAUDE.md).
+create table if not exists event_log (
+  id          uuid primary key default gen_random_uuid(),
+  ref         text,                                  -- código corto mostrado al usuario (ej. A3F9)
+  ns          text not null default 'default',
+  app         text,                                  -- 'merger' | 'vendor'
+  event       text not null,                         -- código del evento (ej. 'error.uncaught', 'sync.fail')
+  severity    text not null default 'info' check (severity in ('info','warn','error')),
+  summary     text,                                  -- descripción breve legible
+  meta        jsonb,                                 -- stack, contexto del dispositivo, breadcrumbs
+  user_id     uuid default auth.uid(),               -- quién (se completa solo al insertar)
+  actor       text,                                  -- nombre/código visible (de la sesión)
+  role        text,                                  -- 'central' | 'vendor'
+  occurred_at timestamptz not null default now(),    -- cuándo ocurrió en el dispositivo
+  created_at  timestamptz not null default now()     -- cuándo llegó a la base
+);
+
+create index if not exists event_log_ns_created_idx on event_log (ns, created_at desc);
+create index if not exists event_log_ref_idx        on event_log (ref);
+create index if not exists event_log_ns_sev_idx     on event_log (ns, severity, created_at desc);
+create index if not exists event_log_ns_event_idx   on event_log (ns, event);
+
+-- Topes de tamaño/forma (igual criterio que orders/clients): evitan inflar la base.
+alter table event_log drop constraint if exists event_log_meta_size;
+alter table event_log add  constraint event_log_meta_size    check (meta is null or octet_length(meta::text) <= 262144); -- 256 KB
+alter table event_log drop constraint if exists event_log_summary_len;
+alter table event_log add  constraint event_log_summary_len  check (summary is null or char_length(summary) <= 4000);
+alter table event_log drop constraint if exists event_log_event_len;
+alter table event_log add  constraint event_log_event_len    check (char_length(event) <= 120);
+alter table event_log drop constraint if exists event_log_ref_len;
+alter table event_log add  constraint event_log_ref_len      check (ref is null or char_length(ref) <= 32);
+
+-- RLS: cualquiera logueado de la tienda INSERTA su evento; LEE solo central.
+-- Sin policies de update/delete → append-only (nadie edita ni borra desde la app).
+alter table event_log enable row level security;
+drop policy if exists event_log_insert on event_log;
+drop policy if exists event_log_read   on event_log;
+create policy event_log_insert on event_log for insert to authenticated with check (store_role(ns) in ('central','vendor'));
+create policy event_log_read   on event_log for select to authenticated using (store_role(ns) = 'central');
