@@ -5624,9 +5624,12 @@ function enhanceSelect(sel) {
 function refreshSelect(sel) { if (sel && sel._cselSync) sel._cselSync(); }
 // Convierte todos los <select> aún no convertidos (incl. los generados dinámicamente).
 function enhanceAllSelects(root) {
-  (root || document).querySelectorAll('select').forEach(enhanceSelect);
+  // root puede venir como un Event si se usa de handler — usar document salvo
+  // que sea un nodo real con querySelectorAll.
+  const scope = (root && typeof root.querySelectorAll === 'function') ? root : document;
+  scope.querySelectorAll('select').forEach(enhanceSelect);
 }
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', enhanceAllSelects);
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => enhanceAllSelects());
 else enhanceAllSelects();
 
 function toggleStockGroup(name) {
