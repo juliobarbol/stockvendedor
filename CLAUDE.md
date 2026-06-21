@@ -273,6 +273,29 @@ Dos canales equivalentes, según haya nube o no:
 
 ## Notas de desarrollo
 
+- **EN CURSO (2026-06-21): rediseño de UI ("estilo DaisyUI" sin build) — rama
+  `claude/light-theme-ui-dtlqb5`, todo MERGEADO a `main`.** Por etapas,
+  publicando cada una. Hecho:
+  - **Tema claro/oscuro**: variables en `html[data-theme="light"]` (CSS, tras
+    `:root`); script inline en el `<head>` (`applyTheme`/`toggleTheme`,
+    `localStorage['ui_theme']`, default `dark`); botón `#themeToggleBtn` en el
+    hero de Inicio.
+  - **Tarjetas limpias**: `.config-section` (Inicio), `.template-section` y
+    `.order-search-section` (Armar pedido).
+  - **Desplegable propio para `<select>`** (la lista nativa no se puede pintar):
+    `enhanceSelect`/`refreshSelect`/`enhanceAllSelects` en UI.JS (cerca de
+    `setStockGroup`). Oculta el `<select>` (`.csel-native`; sigue funcional: al
+    elegir setea `value` + dispara `change`), trigger `.csel-trigger` + lista
+    `.csel-pop` **flotante** (position:fixed, colgada del `<body>`). Aplicado a
+    `stockSortSelect`, `stockGroupSelect`, `tplClientSelect` (con `refreshSelect`
+    al repoblar). Se enhancean todos en load (`enhanceAllSelects`).
+  - **PENDIENTE / a sincronizar con StockMerger**: portar `appPrompt` (cuadro
+    de texto propio) para los `prompt()` de contraseña que SIGUEN NATIVOS acá
+    (gran reset y conexión, `sbUnlockConfig`/`authGateConfig`); opcionalmente un
+    MutationObserver como en la central (hoy alcanza con enhancear en load
+    porque los selects del vendedor son estáticos). Falta confirmación de Julio.
+  > El detalle completo del rediseño (con la central, `appPrompt`, tablas, etc.)
+  > está en el CLAUDE.md de StockMerger.
 - **HECHO (2026-06-21): bitácora de diagnóstico** (`LOG.JS` + tabla `event_log`).
   NO es un audit log para mirar desde la app: es una bitácora REMOTA para
   diagnosticar cuando alguien reporta un error. Captura crashes de JS
