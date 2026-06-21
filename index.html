@@ -3301,14 +3301,70 @@ async function _logFlush() {
 }
 
 // ── Captura automática de errores no atrapados ──
+// ── Aviso de error al usuario (tarjeta persistente con código + botones) ──
+// Nombre amigable de la app para los mensajes.
+const LOG_APP_NAME = (LOG_APP === 'merger') ? 'Central' : 'Vendedor';
+// Número de aviso por WhatsApp (ofuscado en base64 — el repo es PÚBLICO, esto
+// no es protección real, solo frena al curioso casual / robots simples).
+function _logWaNumber() { try { return atob('NTQ5MzUxNjUwNzY5OQ=='); } catch (e) { return ''; } }
+
+function _logReportText(ref) {
+  return 'App ' + LOG_APP_NAME + ' — error ref: ' + ref + ' — ' + new Date().toLocaleString('es-AR');
+}
+function _logCopy(text, btn) {
+  const done = () => { if (btn) { const o = btn.textContent; btn.textContent = '¡Copiado!'; setTimeout(() => { btn.textContent = o; }, 1500); } };
+  const fb = () => {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta); done();
+    } catch (e) {}
+  };
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(fb);
+    } else { fb(); }
+  } catch (e) { fb(); }
+}
+
 function _logShowRef(ref) {
   try {
-    const now = Date.now();
-    if (now - _logLastToast < 4000) return;       // throttle: no spamear avisos
-    _logLastToast = now;
-    if (typeof toast === 'function') {
-      toast('Ocurrió un error (ref: ' + ref + '). Si se repite, avisanos con ese código.', 'err');
-    }
+    if (!document || !document.body) return;
+    const old = document.getElementById('logErrCard');
+    if (old) old.remove();
+    const text = _logReportText(ref);
+    const card = document.createElement('div');
+    card.id = 'logErrCard';
+    card.setAttribute('style', [
+      'position:fixed','left:12px','right:12px','top:12px','z-index:99999',
+      'max-width:520px','margin:0 auto','background:#1b1014','color:#fde2e2',
+      'border:1px solid #e57373','border-radius:12px','padding:14px',
+      'box-shadow:0 8px 30px rgba(0,0,0,.5)','font-family:inherit','font-size:14px'
+    ].join(';'));
+    card.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
+        '<div style="font-weight:700">⚠️ Ocurrió un error</div>' +
+        '<button data-act="close" style="background:none;border:none;color:#fde2e2;font-size:20px;line-height:1;cursor:pointer;padding:0 2px">×</button>' +
+      '</div>' +
+      '<div style="margin:6px 0 2px">Código: <span style="font-weight:700;font-size:18px;letter-spacing:1px">' + ref + '</span></div>' +
+      '<div style="opacity:.8;font-size:12px;margin-bottom:10px">App ' + LOG_APP_NAME + ' · pasale este código a Julio para que lo revise.</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+        '<button data-act="wa" style="flex:1;min-width:140px;background:#25d366;color:#04310f;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer">💬 Avisar por WhatsApp</button>' +
+        '<button data-act="copy" style="background:#33252a;color:#fde2e2;border:1px solid #e57373;border-radius:8px;padding:10px 12px;font-weight:600;cursor:pointer">📋 Copiar</button>' +
+      '</div>';
+    card.addEventListener('click', (ev) => {
+      const act = ev.target && ev.target.getAttribute && ev.target.getAttribute('data-act');
+      if (act === 'close') { card.remove(); }
+      else if (act === 'copy') { _logCopy(text, ev.target); }
+      else if (act === 'wa') {
+        const num = _logWaNumber();
+        if (!num) return;
+        const url = 'https://wa.me/' + num + '?text=' + encodeURIComponent('Hola Julio, me salió un error en la app ' + LOG_APP_NAME + '. ' + text);
+        try { window.open(url, '_blank'); } catch (e) { location.href = url; }
+      }
+    });
+    document.body.appendChild(card);
   } catch (e) {}
 }
 function _logHandleError(event, summary, errObj, extraMeta) {
