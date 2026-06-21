@@ -116,8 +116,16 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   text-transform: uppercase; letter-spacing: .05em;
   margin-bottom: .5rem;
 }
-.config-section { padding: 1rem 1rem; border-top: 1px solid var(--border); }
-.config-section:first-of-type { border-top: none; }
+/* Piloto estilo DaisyUI (solo pantalla Inicio): cada sección es una "card"
+   limpia — fondo propio, borde suave, esquinas redondeadas y aire entre sí. */
+.config-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.1rem 1.1rem 1.2rem;
+  margin: 0 1rem 1rem;
+}
+.config-section:first-of-type { margin-top: 1rem; }
 
 .field-group { margin-bottom: .75rem; }
 .field-group label {
