@@ -68,6 +68,7 @@ Cada módulo arranca con un banner `// XXX.JS — ...`. Saltá directo al rango:
 | `UTILS.JS` | 1857–1968 | Utilidades compartidas (normalización de claves `_key`, etc.). |
 | `IMPORT.JS` | 1969–2222 | Importar el catálogo enviado por la central: `applyVendorData()`. |
 | `SUPABASE.JS` | 2223–2661 | Sync **opcional** con la nube: bajar catálogo, subir pedidos (y disparadores de `syncClientsToCloud`). |
+| `LOG.JS` | 3130–3349 | **Bitácora de diagnóstico**: `logEvent()` (best-effort, cola offline) sube a la tabla `event_log`; captura `window.onerror`/`unhandledrejection`, muestra un código `ref` al usuario y adjunta breadcrumbs (`addBreadcrumb`) + contexto. Mismo módulo que StockMerger. |
 | `REALTIME.JS` | 2662–2719 | Supabase Realtime: escucha cambios en `catalog`. |
 | `TEMPLATE.JS` | 2720–3267 | Plantilla Excel para clientes (con atajo de libreta y autofiltro). |
 | `ORDERS.JS` | 3268–4059 | Armado y gestión de pedidos + envío (push) con cola/idempotencia. `setActiveList` bloquea la lista si el pedido tiene cliente con ficha. |
@@ -166,6 +167,7 @@ consultan ese rol con el helper `store_role(ns)`; sin sesión iniciada
 | `catalog` | **Lee** la fila de su tienda (`id = ns`): `{ id, payload, updated_at }`. El `payload` es un `vendor_data_v2` (stock + 3 listas). Lo aplica con `applyVendorData()`. |
 | `orders` | **Escribe** (insert) un pedido: `{ ns, order_id, vendor, client, payload }`. |
 | `clients` | **Escribe** (upsert) la ficha `{ ns, client_id, name, list, vendor }` al crear/editar un cliente de la libreta (las notas privadas NO viajan). La central las baja para su libreta. |
+| `event_log` | **Escribe** (insert, best-effort). Bitácora de diagnóstico: errores, contexto y breadcrumbs (`LOG.JS`). Append-only; la lee solo la central (Management API). |
 
 Realtime: se suscribe a `postgres_changes` en `catalog` para refrescar el
 catálogo apenas la central publica. (Si el payload supera el límite de 256 KB
@@ -271,6 +273,18 @@ Dos canales equivalentes, según haya nube o no:
 
 ## Notas de desarrollo
 
+- **HECHO (2026-06-21): bitácora de diagnóstico** (`LOG.JS` + tabla `event_log`).
+  NO es un audit log para mirar desde la app: es una bitácora REMOTA para
+  diagnosticar cuando alguien reporta un error. Captura crashes de JS
+  (`window.onerror`/`unhandledrejection`) y fallos de operaciones riesgosas
+  (ej. `pullCatalog`, envío de pedido), con stack, contexto del dispositivo y
+  **breadcrumbs** (las últimas acciones, vía `addBreadcrumb`). Cada error le
+  muestra al usuario un código corto `ref`. Best-effort: nunca rompe la app, y
+  si falla la subida queda en una **cola local** (`event_log_queue`, conservada
+  por el gran reset) que se reintenta al volver la conexión. La central la
+  consulta por la Management API (ver `schema.sql` y el `CLAUDE.md` de
+  StockMerger para las queries). Mismo módulo en ambos repos (solo cambian
+  `LOG_APP`/`LOG_ROLE`).
 - **HECHO (2026-06-13): acceso por persona a la nube** (Supabase Auth + RLS por
   rol). Ver la sección "Acceso por persona" en "Conexión con la nube" (arriba).
   El vendedor solo lee catálogo e inserta pedidos/fichas de su `ns`; necesita
