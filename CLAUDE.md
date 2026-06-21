@@ -68,6 +68,7 @@ Cada módulo arranca con un banner `// XXX.JS — ...`. Saltá directo al rango:
 | `UTILS.JS` | 1857–1968 | Utilidades compartidas (normalización de claves `_key`, etc.). |
 | `IMPORT.JS` | 1969–2222 | Importar el catálogo enviado por la central: `applyVendorData()`. |
 | `SUPABASE.JS` | 2223–2661 | Sync **opcional** con la nube: bajar catálogo, subir pedidos (y disparadores de `syncClientsToCloud`). |
+| `LOG.JS` | 3130–3349 | **Bitácora de diagnóstico**: `logEvent()` (best-effort, cola offline) sube a la tabla `event_log`; captura `window.onerror`/`unhandledrejection`, muestra un código `ref` al usuario y adjunta breadcrumbs (`addBreadcrumb`) + contexto. Mismo módulo que StockMerger. |
 | `REALTIME.JS` | 2662–2719 | Supabase Realtime: escucha cambios en `catalog`. |
 | `TEMPLATE.JS` | 2720–3267 | Plantilla Excel para clientes (con atajo de libreta y autofiltro). |
 | `ORDERS.JS` | 3268–4059 | Armado y gestión de pedidos + envío (push) con cola/idempotencia. `setActiveList` bloquea la lista si el pedido tiene cliente con ficha. |
@@ -99,6 +100,66 @@ Config en `localStorage['sb_config'] = { url, anonKey, ns }`:
 
 Cliente creado con `supabase.createClient(url, anonKey)` (ver `scClient()`).
 
+La sección de conexión de la UI (Home) queda **oculta tras la contraseña
+`opbayressincnube`** una vez configurada (candado anti-miradas, mismo espíritu
+que el gran reset — no es seguridad real). El campo de la key es
+`type="password"` y el resumen solo muestra las últimas 4. Igual en la central
+(pestaña Archivos). Ver `sbLockRefresh()` en SUPABASE.JS de ambos repos.
+
+### Acceso por persona (Supabase Auth + RLS) — HECHO (2026-06-13)
+
+La anon key **ya NO abre la base por sí sola**: hay RLS real por rol. Cada
+persona tiene un usuario de Supabase Auth (email + contraseña) y un rol por
+tienda (`central` / `vendor`) en la tabla `user_stores`. Las policies
+consultan ese rol con el helper `store_role(ns)`; sin sesión iniciada
+(`auth.uid()` null) no se ve ni se toca nada.
+
+- **Gate de login al abrir** (`#authGate`, `authGateRefresh()`): si la nube
+  está configurada y NO hay sesión guardada, una pantalla tapa la app hasta
+  iniciar sesión (`authGateLogin()`). No bloquea el modo file-only (sin nube
+  configurada no aparece). Botón "Configurar conexión" (`authGateConfig()`,
+  tras la contraseña del candado) para cargar URL/key la primera vez.
+- **Captcha en el login (Cloudflare Turnstile) — HECHO (2026-06-19)**: ambas
+  pantallas de login (gate `#gateCaptcha` y sección de conexión
+  `#sbLoginCaptcha`) muestran un widget Turnstile; el token viaja en
+  `signInWithPassword({ options:{ captchaToken } })` y Supabase lo valida con la
+  **clave secreta** (en `config/auth`, `security_captcha_provider:'turnstile'`,
+  **NUNCA en el código** — el repo es público). La **Site Key** sí va en el HTML
+  (`TURNSTILE_SITEKEY`, es pública por diseño). Helpers en SUPABASE.JS:
+  `_loadTurnstile` / `_ensureCaptcha` / `_captchaToken` / `_captchaReset`.
+  Degrada con gracia: si el script no carga, el login sigue sin token. Solo
+  protege el **inicio de sesión** (no el refresh ni las sesiones ya abiertas) y
+  no aparece en modo file-only. **Kill-switch**: `security_captcha_enabled` en
+  Supabase (Management API) lo apaga al instante sin redeploy. El alta de
+  personas no cambia. El widget Turnstile vive en la cuenta Cloudflare de Julio
+  (hostnames `stockmerger.*` y `stockvendedor.*.workers.dev`).
+- **Persistencia**: `scClient()` crea el cliente con `persistSession: true` +
+  `autoRefreshToken: true` + `storageKey: SB_AUTH_KEY`. La sesión queda en
+  `localStorage` (`sb-<ref>-auth-token`) y sobrevive recargas; offline el token
+  vencido se renueva solo al recuperar internet. El gate usa
+  `_sbHasStoredSession()` (presencia, sin exigir token vigente) para no
+  desloguear al vendedor sin señal.
+- **Login también en la sección de conexión**: dentro del candado hay el mismo
+  formulario (`sbLogin()`); muestra el email y "Cerrar sesión" (`sbLogout()`,
+  re-muestra el gate). Estado refrescado por `sbLockRefresh()` con
+  `_sbGetSession()`.
+- **El vendedor**: solo puede LEER `catalog` e INSERTAR en `orders`/`clients`
+  de su `ns` (no borra, no ve pedidos ajenos ni las tablas solo-central).
+- **Identidad fija por cuenta** (HECHO 2026-06-13): el nombre y el código corto
+  del vendedor ya NO se escriben a mano. Se guardan en `app_metadata`
+  (`vendor_name` / `vendor_code`) del usuario de Auth — que el propio usuario NO
+  puede editar — y al iniciar sesión la app los autocompleta en "Tu identidad"
+  y deja los campos **bloqueados** (sin botón Guardar). Así no se duplican
+  vendedores por editar el nombre. Helpers: `_sbAccountIdentity()` lee la
+  identidad de la sesión guardada (sirve también offline) y `applyVendorIdentity()`
+  la fija en `state.user` (se llama en login, `scInitUI` y `renderHomeTab`).
+  Alta: además de `user_stores`, setear `app_metadata` (ver `schema.sql`).
+- **Gran reset**: conserva la clave de sesión (`sb-<ref>-auth-token`) en
+  `GRAN_RESET_KEEP`, igual que `sb_config`, para no desloguear.
+- **Alta/baja de personas**: crear/borrar el usuario en Supabase Auth y su fila
+  en `user_stores` (con la service_role key o la Management API). El detalle
+  está en `schema.sql` del repo de StockMerger (sección AUTH + RLS).
+
 ### Tablas que toca StockVendedor
 
 | Tabla | Uso desde el vendedor |
@@ -106,6 +167,7 @@ Cliente creado con `supabase.createClient(url, anonKey)` (ver `scClient()`).
 | `catalog` | **Lee** la fila de su tienda (`id = ns`): `{ id, payload, updated_at }`. El `payload` es un `vendor_data_v2` (stock + 3 listas). Lo aplica con `applyVendorData()`. |
 | `orders` | **Escribe** (insert) un pedido: `{ ns, order_id, vendor, client, payload }`. |
 | `clients` | **Escribe** (upsert) la ficha `{ ns, client_id, name, list, vendor }` al crear/editar un cliente de la libreta (las notas privadas NO viajan). La central las baja para su libreta. |
+| `event_log` | **Escribe** (insert, best-effort). Bitácora de diagnóstico: errores, contexto y breadcrumbs (`LOG.JS`). Append-only; la lee solo la central (Management API). |
 
 Realtime: se suscribe a `postgres_changes` en `catalog` para refrescar el
 catálogo apenas la central publica. (Si el payload supera el límite de 256 KB
@@ -211,6 +273,22 @@ Dos canales equivalentes, según haya nube o no:
 
 ## Notas de desarrollo
 
+- **HECHO (2026-06-21): bitácora de diagnóstico** (`LOG.JS` + tabla `event_log`).
+  NO es un audit log para mirar desde la app: es una bitácora REMOTA para
+  diagnosticar cuando alguien reporta un error. Captura crashes de JS
+  (`window.onerror`/`unhandledrejection`) y fallos de operaciones riesgosas
+  (ej. `pullCatalog`, envío de pedido), con stack, contexto del dispositivo y
+  **breadcrumbs** (las últimas acciones, vía `addBreadcrumb`). Cada error le
+  muestra al usuario un código corto `ref`. Best-effort: nunca rompe la app, y
+  si falla la subida queda en una **cola local** (`event_log_queue`, conservada
+  por el gran reset) que se reintenta al volver la conexión. La central la
+  consulta por la Management API (ver `schema.sql` y el `CLAUDE.md` de
+  StockMerger para las queries). Mismo módulo en ambos repos (solo cambian
+  `LOG_APP`/`LOG_ROLE`).
+- **HECHO (2026-06-13): acceso por persona a la nube** (Supabase Auth + RLS por
+  rol). Ver la sección "Acceso por persona" en "Conexión con la nube" (arriba).
+  El vendedor solo lee catálogo e inserta pedidos/fichas de su `ns`; necesita
+  iniciar sesión (email + contraseña) en la sección de conexión.
 - No hay tests ni linters; es HTML+JS plano servido estático.
 - Para cambios de catálogo/pedido, verificá la app hermana
   (`juliobarbol/stockmerger`): comparten formato `vendor_data_v2`, esquema de
