@@ -1197,6 +1197,16 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .badge-cloud-ok   { background: #dcfce7; color: #166534; }
 .badge-cloud-pend { background: #fef9c3; color: #854d0e; }
 
+/* Diálogo de confirmar propio (reemplaza el confirm() del navegador) */
+.app-modal-overlay{position:fixed;inset:0;z-index:4000;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:1.5rem}
+.app-modal{width:100%;max-width:420px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:1.2rem;box-shadow:0 16px 48px rgba(0,0,0,.35)}
+.app-modal-msg{font-size:.85rem;color:var(--text);line-height:1.5;white-space:pre-wrap;max-height:55vh;overflow-y:auto}
+.app-modal-actions{display:flex;justify-content:flex-end;gap:.6rem;margin-top:1.1rem}
+.app-modal-btn{min-height:var(--tap);padding:.5rem 1.1rem;border-radius:10px;font-weight:700;font-size:.85rem;cursor:pointer;border:1px solid var(--border);-webkit-tap-highlight-color:transparent}
+.app-modal-cancel{background:var(--surface2);color:var(--text)}
+.app-modal-ok{background:var(--accent);color:#0d0f14;border-color:var(--accent)}
+.app-modal-danger{background:#e5484d;color:#fff;border-color:#e5484d}
+
 </style>
 </head>
 <body>
@@ -1610,6 +1620,17 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
       <button class="btn-choice-save" id="orderChoiceSaveBtn" onclick="orderChoiceSave()">💾 Guardar</button>
       <button class="btn-choice-discard" id="orderChoiceDiscardBtn" onclick="orderChoiceDiscard()">🗑 Descartar</button>
       <button class="btn-choice-cancel" onclick="closeOrderChoiceOverlay()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: confirmar (reemplaza al confirm() del navegador) ══ -->
+<div id="appConfirmOverlay" class="app-modal-overlay" style="display:none" onclick="if(event.target===this)_appConfirmClose(false)">
+  <div class="app-modal">
+    <div class="app-modal-msg" id="appConfirmMsg"></div>
+    <div class="app-modal-actions">
+      <button class="app-modal-btn app-modal-cancel" id="appConfirmCancel" onclick="_appConfirmClose(false)">Cancelar</button>
+      <button class="app-modal-btn app-modal-ok" id="appConfirmOk" onclick="_appConfirmClose(true)">Aceptar</button>
     </div>
   </div>
 </div>
@@ -2044,6 +2065,32 @@ function fmtMoney(n) {
 
 function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
+// ── Diálogo de confirmar propio (reemplaza el confirm() del navegador) ──
+// Devuelve una promesa que resuelve true (Aceptar) o false (Cancelar). Uso:
+//   if (!await appConfirm('¿Borrar?')) return;
+//   if (!await appConfirm({ message:'...', okText:'Borrar', danger:true })) return;
+let _appConfirmResolve = null;
+function appConfirm(opts) {
+  if (typeof opts === 'string') opts = { message: opts };
+  opts = opts || {};
+  return new Promise(resolve => {
+    _appConfirmResolve = resolve;
+    document.getElementById('appConfirmMsg').textContent = opts.message || '';
+    const ok = document.getElementById('appConfirmOk');
+    const cancel = document.getElementById('appConfirmCancel');
+    ok.textContent = opts.okText || 'Aceptar';
+    cancel.textContent = opts.cancelText || 'Cancelar';
+    ok.classList.toggle('app-modal-danger', !!opts.danger);
+    document.getElementById('appConfirmOverlay').style.display = 'flex';
+    setTimeout(() => { try { cancel.focus(); } catch (e) {} }, 50);
+  });
+}
+function _appConfirmClose(val) {
+  document.getElementById('appConfirmOverlay').style.display = 'none';
+  const r = _appConfirmResolve; _appConfirmResolve = null;
+  if (r) r(!!val);
+}
+
 // Escape HTML — usar SIEMPRE al interpolar strings de usuario o datos
 // externos en HTML. El cliente puede escribir cualquier cosa en el input
 // "nombre del cliente", y los nombres de productos vienen del JSON exportado
@@ -2456,12 +2503,13 @@ async function granReset() {
     toast('Contraseña incorrecta — no se borró nada.', 'err');
     return;
   }
-  if (!confirm(
-    '⚠️ ÚLTIMA CONFIRMACIÓN\n\nSe va a borrar TODO lo guardado en este teléfono:\n' +
+  if (!await appConfirm({
+    message: '⚠️ ÚLTIMA CONFIRMACIÓN\n\nSe va a borrar TODO lo guardado en este teléfono:\n' +
     '• Catálogo (stock y precios)\n• Pedidos enviados y pedido en curso\n' +
     '• Libreta de clientes\n• Usuario configurado\n\n' +
-    'Se conserva la conexión a la nube.\n\n¿Borrar todo?'
-  )) return;
+    'Se conserva la conexión a la nube.\n\n¿Borrar todo?',
+    okText: 'Borrar todo', danger: true
+  })) return;
 
   // Registrar el gran reset y subirlo ya (la cola se conserva en GRAN_RESET_KEEP).
   logEvent('gran_reset', { severity: 'warn', summary: 'Gran reset del vendedor (borrado local)' });
@@ -3811,7 +3859,7 @@ function importClientTemplate(event) {
   event.target.value = '';
 
   const reader = new FileReader();
-  reader.onload = evt => {
+  reader.onload = async evt => {
     try {
       const wb = XLSX.read(evt.target.result, { type: 'array' });
 
@@ -3843,7 +3891,7 @@ function importClientTemplate(event) {
       if (templateList !== state.activeList) {
         const orig = listDisplayName(templateList);
         const own  = listDisplayName(state.activeList);
-        if (!confirm(
+        if (!await appConfirm(
           `Esta plantilla fue generada con ${orig}, pero tu lista activa es ${own}.\n\n` +
           `Si continuás, voy a cambiar la lista activa a ${orig} para que los precios coincidan.\n\n` +
           `¿Continuar?`
@@ -3943,11 +3991,11 @@ function importClientTemplate(event) {
 
       msg += `\n\n¿Cargar este pedido?`;
 
-      if (!confirm(msg)) return;
+      if (!await appConfirm({ message: msg, okText: 'Cargar' })) return;
 
       // Si ya hay un pedido en curso, preguntar
       if (state.currentOrder.items.length > 0) {
-        if (!confirm('Ya hay un pedido en curso. ¿Reemplazarlo con este?')) return;
+        if (!await appConfirm('Ya hay un pedido en curso. ¿Reemplazarlo con este?')) return;
         clearCurrentOrder();
       }
 
@@ -4147,7 +4195,7 @@ function listDisplayName(list) {
 //     price=0, subtotal=0. El render los muestra con badge rojo.
 //   - Si el usuario después vuelve a una lista donde sí tienen precio,
 //     el flag _noPrice se quita y los precios se restauran.
-function setActiveList(newList, opts) {
+async function setActiveList(newList, opts) {
   opts = opts || {};
   if (newList !== 'act' && newList !== 'dist' && newList !== 'vip') return;
   if (newList === state.activeList) return; // nada que hacer
@@ -4166,7 +4214,7 @@ function setActiveList(newList, opts) {
   if (items.length > 0 && !opts.skipConfirm) {
     const newName = listDisplayName(newList);
     const oldName = listDisplayName(state.activeList);
-    if (!confirm(
+    if (!await appConfirm(
       `Cambiar de ${oldName} a ${newName} va a recalcular los precios ` +
       `de ${items.length} item${items.length !== 1 ? 's' : ''} del pedido.\n\n` +
       `¿Continuar?`
@@ -4489,7 +4537,7 @@ function exportOrderJSON(order) {
 }
 
 // Eliminar pedido del historial
-function deleteOrder(id) {
+async function deleteOrder(id) {
   const o = state.orders.find(o => o.id === id);
   if (!o) return;
   // Para borradores usamos deleteDraft que tiene su propio confirm con info
@@ -4497,7 +4545,7 @@ function deleteOrder(id) {
     deleteDraft(id);
     return;
   }
-  if (!confirm('¿Eliminar este pedido del historial?')) return;
+  if (!await appConfirm({ message: '¿Eliminar este pedido del historial?', okText: 'Eliminar', danger: true })) return;
   state.orders = state.orders.filter(o => o.id !== id);
   saveOrders();
   if (typeof renderOrdersTab === 'function') renderOrdersTab();
@@ -4679,17 +4727,18 @@ function loadDraftIntoCurrentOrder(draftId) {
 }
 
 // Eliminar un borrador del historial (permanente).
-function deleteDraft(draftId) {
+async function deleteDraft(draftId) {
   const draft = state.orders.find(o => o.id === draftId && o.status === 'draft');
   if (!draft) return;
   const clienteStr = draft.client?.trim() || '(sin cliente)';
   const itemCount = draft.items?.length || 0;
-  if (!confirm(
-    `¿Eliminar el borrador?\n\n` +
+  if (!await appConfirm({
+    message: `¿Eliminar el borrador?\n\n` +
     `Cliente: ${clienteStr}\n` +
     `Items: ${itemCount}\n\n` +
-    `Esta acción es permanente.`
-  )) return;
+    `Esta acción es permanente.`,
+    okText: 'Eliminar', danger: true
+  })) return;
 
   // Si el borrador está actualmente cargado en currentOrder, desvincularlo
   // (sino al guardar/enviar trataría de reemplazar una entrada que ya no existe).
@@ -5078,10 +5127,10 @@ function saveClientEdit() {
   }
 }
 
-function deleteClientEdit() {
+async function deleteClientEdit() {
   const c = getClientById(_editingClientId);
   if (!c) { closeClientEdit(); return; }
-  if (!confirm(`¿Borrar la ficha de "${c.name}"?\n\nLos pedidos ya hechos no se tocan.`)) return;
+  if (!await appConfirm({ message: `¿Borrar la ficha de "${c.name}"?\n\nLos pedidos ya hechos no se tocan.`, okText: 'Borrar', danger: true })) return;
   state.clients = state.clients.filter(x => x.id !== c.id);
   saveClients();
   // Si era el cliente del pedido en curso: queda el nombre suelto y la
@@ -5135,12 +5184,12 @@ function openClientEditFromPicker() {
   if (q) document.getElementById('clientEditName').value = q;
 }
 
-function pickClientForOrder(id) {
+async function pickClientForOrder(id) {
   const c = getClientById(id);
   if (!c) return;
   const items = state.currentOrder.items || [];
   if (items.length > 0 && c.list !== state.activeList) {
-    if (!confirm(
+    if (!await appConfirm(
       `${c.name} usa la lista ${listDisplayName(c.list)}.\n` +
       `Los precios de ${items.length} item${items.length !== 1 ? 's' : ''} del pedido se van a recalcular.\n\n¿Continuar?`
     )) return;
@@ -5906,14 +5955,14 @@ function _availabilityBadge(key, requestedQty) {
   return ` · <span class="oi-avail oi-avail-ok">${disponible} disp.</span>`;
 }
 
-function changeOrderQty(key, delta) {
+async function changeOrderQty(key, delta) {
   const item = state.currentOrder.items.find(i => i.key === key);
   if (!item) return;
   const newQty = item.qty + delta;
   // Si el botón "−" llevaría a 0 o menos, preguntamos antes de borrar el item.
   // Sin esto, un click de más elimina el producto silenciosamente.
   if (newQty < 1) {
-    if (!confirm(`¿Quitar "${item.label}" del pedido?`)) return;
+    if (!await appConfirm({ message: `¿Quitar "${item.label}" del pedido?`, okText: 'Quitar', danger: true })) return;
     removeFromOrder(key);
   } else {
     updateOrderItem(key, newQty);
@@ -5995,9 +6044,9 @@ async function handleSendOrder() {
   }
 }
 
-function handleClearOrder() {
+async function handleClearOrder() {
   if (!state.currentOrder.items.length) return;
-  if (!confirm('¿Vaciar el pedido actual?')) return;
+  if (!await appConfirm({ message: '¿Vaciar el pedido actual?', okText: 'Vaciar', danger: true })) return;
   clearCurrentOrder();
   // Limpiar también el buscador
   const searchInput = document.getElementById('orderSearchInput');
