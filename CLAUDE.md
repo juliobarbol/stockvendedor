@@ -260,10 +260,11 @@ Dos canales equivalentes, según haya nube o no:
   mano; cada movimiento guarda la cotización con la que se registró, así los
   reportes históricos no cambian al actualizarla. Esa misma cotización es el
   **tipo de cambio que se precarga al generar el PDF de un pedido** (en
-  StockMerger), y se **sincroniza en ambos sentidos**; un botón **🔄** trae el
-  **dólar blue (valor *venta*)** desde `dolarapi.com` (InfoDólar no se puede
-  leer directo por CORS). Nada de esto viaja a StockVendedor ni a la nube (vive
-  en `state.treasury`, local + backups).
+  StockMerger), y se **sincroniza en ambos sentidos**. El **dólar blue (valor
+  *venta*) se trae automáticamente** desde `dolarapi.com` (InfoDólar no se puede
+  leer directo por CORS), sin pisar una cotización ya cargada a mano hoy (sigue
+  editable), más un botón **🔄** para forzarlo. Nada de esto viaja a
+  StockVendedor ni a la nube (vive en `state.treasury`, local + backups).
 - **Cuenta corriente de clientes (en USD)**: la deuda nace al CONFIRMAR un
   pedido (flag `ctaCte` que se setea desde v26 — los confirmados antes se
   asumen ya cobrados). Los pagos se registran como "cobranza" en Caja (en
