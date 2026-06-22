@@ -85,7 +85,8 @@ create unique index if not exists received_orders_ns_id_uq on received_orders (n
 -- clients — fichas de clientes creadas por los vendedores
 --   escribe: StockVendedor (upsert al crear/editar una ficha)
 --   lee:     StockMerger (pull + Realtime) para sumarlas a su libreta
---   Las notas privadas del vendedor NO viajan (solo nombre/lista/vendedor).
+--   Las notas privadas del vendedor NO viajan; sí viajan nombre / lista /
+--   vendedor / domicilio / teléfono.
 -- ════════════════════════════════════════════════════════════════════
 create table if not exists clients (
   ns          text not null default 'default',
@@ -93,6 +94,8 @@ create table if not exists clients (
   name        text not null,
   list        text not null default 'act', -- 'act' | 'dist' | 'vip'
   vendor      text,                        -- nombre del vendedor que la cargó
+  domicilio   text,                        -- dirección del cliente (opcional, viaja vendor→central)
+  telefono    text,                        -- teléfono del cliente (opcional, viaja vendor→central)
   updated_at  timestamptz not null default now()
 );
 create unique index if not exists clients_ns_client_uq on clients (ns, client_id);
@@ -114,6 +117,13 @@ alter table clients drop constraint if exists clients_vendor_len;
 alter table clients add  constraint clients_vendor_len  check (vendor is null or char_length(vendor) <= 200);
 alter table clients drop constraint if exists clients_list_chk;
 alter table clients add  constraint clients_list_chk    check (list in ('act','dist','vip'));
+-- Datos de contacto del cliente (opcionales; viajan vendor→central desde 2026-06).
+alter table clients add column if not exists domicilio text;
+alter table clients add column if not exists telefono  text;
+alter table clients drop constraint if exists clients_domicilio_len;
+alter table clients add  constraint clients_domicilio_len check (domicilio is null or char_length(domicilio) <= 300);
+alter table clients drop constraint if exists clients_telefono_len;
+alter table clients add  constraint clients_telefono_len  check (telefono is null or char_length(telefono) <= 60);
 
 -- Realtime para avisar a la central al instante (best-effort: si la
 -- publication no existe o ya estaba agregada, se ignora el error).

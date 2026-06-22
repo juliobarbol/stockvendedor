@@ -1579,6 +1579,15 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
       </div>
     </div>
     <div class="field-group">
+      <label>Domicilio <span style="opacity:.6;font-weight:400">(opcional)</span></label>
+      <input type="text" id="clientEditDomicilio" placeholder="Dirección del cliente"
+        autocomplete="off" autocapitalize="words">
+    </div>
+    <div class="field-group">
+      <label>Teléfono <span style="opacity:.6;font-weight:400">(opcional)</span></label>
+      <input type="tel" id="clientEditTelefono" placeholder="Teléfono del cliente" autocomplete="off">
+    </div>
+    <div class="field-group">
       <label>Notas (solo las ves vos)</label>
       <textarea id="clientEditNotes" rows="3" placeholder="Info del cliente para no olvidar..."></textarea>
     </div>
@@ -5052,6 +5061,8 @@ function openClientEdit(id, fromPicker) {
   const c = id ? getClientById(id) : null;
   document.getElementById('clientEditTitle').textContent = c ? 'Editar cliente' : 'Nuevo cliente';
   document.getElementById('clientEditName').value = c ? c.name : '';
+  document.getElementById('clientEditDomicilio').value = c ? (c.domicilio || '') : '';
+  document.getElementById('clientEditTelefono').value = c ? (c.telefono || '') : '';
   document.getElementById('clientEditNotes').value = c ? (c.notes || '') : '';
   _clientEditList = c ? c.list : (state.activeList || 'act');
   _syncClientEditChips();
@@ -5078,6 +5089,8 @@ function _syncClientEditChips() {
 
 function saveClientEdit() {
   const name = (document.getElementById('clientEditName').value || '').trim();
+  const domicilio = (document.getElementById('clientEditDomicilio').value || '').trim();
+  const telefono = (document.getElementById('clientEditTelefono').value || '').trim();
   const notes = (document.getElementById('clientEditNotes').value || '').trim();
   if (!name) { toast('Falta el nombre del cliente', 'err'); return; }
 
@@ -5097,6 +5110,8 @@ function saveClientEdit() {
   }
   c.name = name;
   c.list = _clientEditList;
+  c.domicilio = domicilio;
+  c.telefono = telefono;
   c.notes = notes;
   c.updatedAt = now;
   c._dirty = true;        // pendiente de subir a la nube (para la central)
@@ -5273,6 +5288,8 @@ async function syncClientsToCloud() {
         name:       c.name,
         list:       c.list,
         vendor:     state.user.name || '',
+        domicilio:  c.domicilio || '',
+        telefono:   c.telefono || '',
         updated_at: new Date().toISOString(),
       }, { onConflict: 'ns,client_id' });
       if (error) {

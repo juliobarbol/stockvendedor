@@ -166,7 +166,7 @@ consultan ese rol con el helper `store_role(ns)`; sin sesión iniciada
 |---|---|
 | `catalog` | **Lee** la fila de su tienda (`id = ns`): `{ id, payload, updated_at }`. El `payload` es un `vendor_data_v2` (stock + 3 listas). Lo aplica con `applyVendorData()`. |
 | `orders` | **Escribe** (insert) un pedido: `{ ns, order_id, vendor, client, payload }`. |
-| `clients` | **Escribe** (upsert) la ficha `{ ns, client_id, name, list, vendor }` al crear/editar un cliente de la libreta (las notas privadas NO viajan). La central las baja para su libreta. |
+| `clients` | **Escribe** (upsert) la ficha `{ ns, client_id, name, list, vendor, domicilio, telefono }` al crear/editar un cliente de la libreta (las notas privadas NO viajan). La central las baja para su libreta. |
 | `event_log` | **Escribe** (insert, best-effort). Bitácora de diagnóstico: errores, contexto y breadcrumbs (`LOG.JS`). Append-only; la lee solo la central (Management API). |
 
 Realtime: se suscribe a `postgres_changes` en `catalog` para refrescar el
@@ -241,7 +241,15 @@ Dos canales equivalentes, según haya nube o no:
   el pedido, su lista se aplica y los chips quedan bloqueados. Para un pedido
   puntual con otra lista se EDITA LA FICHA (no se puede pisar desde el pedido).
 - **Notas privadas por lado**: las notas del vendedor no viajan a la central y
-  viceversa. Entre apps solo viajan nombre / lista / vendedor (tabla `clients`).
+  viceversa. Entre apps viajan nombre / lista / vendedor / domicilio / teléfono
+  (tabla `clients`); las notas NO.
+- **Datos de contacto del cliente (domicilio + teléfono)** — HECHO (2026-06-22):
+  campos OPCIONALES en la ficha de cliente (`clientEditDomicilio`/
+  `clientEditTelefono`), bien señalizados como no obligatorios. El vendedor sigue
+  pudiendo crear un cliente con solo el nombre. Se suben a la nube en
+  `syncClientsToCloud` (columnas `domicilio`/`telefono` de `clients`) para que la
+  central los reciba. Mismo cambio en StockMerger (que además avisa con ⚠️ si
+  faltan y los usa en el PDF).
 - **Sync de fichas vendedor → central** (tabla `clients`): los borrados NO
   viajan (la libreta de la central es de la central), y si la central editó
   una ficha (`source: 'central'`), lo que mande un vendedor no la pisa.
