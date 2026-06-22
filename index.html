@@ -3219,6 +3219,7 @@ function scInitUI() {
     setTimeout(() => {
       flushOrderQueue();
       if (typeof syncClientsToCloud === 'function') syncClientsToCloud();
+      if (typeof pullClientsFromCloud === 'function') pullClientsFromCloud();
     }, 1500);
   } else {
     scStatus('Nube no configurada (opcional). Pedile a la central la URL y la key.', '');
@@ -3247,6 +3248,7 @@ function _maybeAutoPull() {
   _lastAutoPull = now;
   if (typeof pullCatalog === 'function') pullCatalog({ auto: true });
   if (typeof syncClientsToCloud === 'function') syncClientsToCloud();
+  if (typeof pullClientsFromCloud === 'function') pullClientsFromCloud();
 }
 window.addEventListener('online', () => { flushOrderQueue(); _maybeAutoPull(); });
 document.addEventListener('visibilitychange', () => {
@@ -3566,13 +3568,19 @@ try {
 
 let _rtCatalogCh = null;
 let _rtCatalogDebounce = null;
+let _rtClientsCh = null;
+let _rtClientsDebounce = null;
 
 function rtStop() {
   const client = (typeof scClient === 'function') ? scClient() : null;
   if (_rtCatalogCh && client) {
     try { client.removeChannel(_rtCatalogCh); } catch (e) {}
   }
+  if (_rtClientsCh && client) {
+    try { client.removeChannel(_rtClientsCh); } catch (e) {}
+  }
   _rtCatalogCh = null;
+  _rtClientsCh = null;
 }
 
 function rtStart() {
@@ -3591,6 +3599,19 @@ function rtStart() {
         clearTimeout(_rtCatalogDebounce);
         _rtCatalogDebounce = setTimeout(() => {
           if (typeof pullCatalog === 'function') pullCatalog({ auto: true });
+        }, 800);
+      })
+    .subscribe();
+
+  // Fichas de clientes: la central puede crear/asignarme un cliente; lo bajamos.
+  _rtClientsCh = client
+    .channel('rt-clients-' + c.ns)
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'clients', filter: 'ns=eq.' + c.ns },
+      () => {
+        clearTimeout(_rtClientsDebounce);
+        _rtClientsDebounce = setTimeout(() => {
+          if (typeof pullClientsFromCloud === 'function') pullClientsFromCloud();
         }, 800);
       })
     .subscribe();
@@ -5164,6 +5185,7 @@ async function deleteClientEdit() {
 function openClientPicker() {
   const inp = document.getElementById('clientPickerSearch');
   if (inp) inp.value = '';
+  if (typeof pullClientsFromCloud === 'function') pullClientsFromCloud(); // traer las que asignó la central
   renderClientPickerList();
   document.getElementById('clientPickerOverlay').classList.add('visible');
 }
@@ -5305,6 +5327,77 @@ async function syncClientsToCloud() {
     console.warn('syncClientsToCloud:', e && e.message);
   } finally {
     _syncClientsBusy = false;
+  }
+}
+
+// ── Bajar fichas que la central me asignó (tabla clients, vendor = yo) ──
+// La central puede crear un cliente y asignármelo (vendedor + lista). Acá las
+// traemos a la libreta local para que el cliente YA EXISTA al armar el pedido,
+// en su lista correcta. Cruce por NOMBRE (como todo el resto). Lo que viene de
+// la nube NO se marca _dirty (no se re-sube). Last-write-wins por updated_at.
+let _pullClientsBusy = false;
+async function pullClientsFromCloud() {
+  if (_pullClientsBusy) return;
+  if (typeof scLibReady !== 'function' || !scLibReady()) return;
+  if (typeof scIsConfigured !== 'function' || !scIsConfigured()) return;
+  const myName = String(state.user && state.user.name || '').trim();
+  if (!myName) return;            // sin identidad todavía: nada que filtrar
+  const client = scClient();
+  if (!client) return;
+  _pullClientsBusy = true;
+  try {
+    const cfg = scGetConfig();
+    const { data, error } = await client
+      .from('clients')
+      .select('client_id, name, list, vendor, domicilio, telefono, updated_at')
+      .eq('ns', cfg.ns)
+      .limit(1000);
+    if (error) { console.warn('pullClientsFromCloud:', error.message); return; }
+    if (!data || !data.length) return;
+    const myKey = myName.toLowerCase();
+    let changed = 0;
+    data.forEach(row => {
+      if (String(row.vendor || '').trim().toLowerCase() !== myKey) return; // solo los míos
+      const name = String(row.name || '').trim();
+      if (!name) return;
+      const list = (row.list === 'dist' || row.list === 'vip') ? row.list : 'act';
+      const existing = findClientByName(name);
+      if (!existing) {
+        state.clients.push({
+          id: row.client_id || _newClientId(),
+          name,
+          list,
+          domicilio: row.domicilio || '',
+          telefono: row.telefono || '',
+          notes: '',
+          source: 'central',
+          createdAt: row.updated_at || new Date().toISOString(),
+          updatedAt: row.updated_at || new Date().toISOString(),
+          _dirty: false,
+        });
+        changed++;
+      } else if (String(row.updated_at || '') > String(existing.updatedAt || '')) {
+        let did = false;
+        if (existing.list !== list) { existing.list = list; did = true; }
+        if (String(existing.domicilio || '') !== String(row.domicilio || '')) { existing.domicilio = row.domicilio || ''; did = true; }
+        if (String(existing.telefono || '') !== String(row.telefono || '')) { existing.telefono = row.telefono || ''; did = true; }
+        if (did) {
+          existing.updatedAt = row.updated_at;
+          existing._dirty = false; // viene de la nube, no re-subir
+          changed++;
+        }
+      }
+    });
+    if (changed) {
+      saveClients();
+      if (typeof renderClientsTab === 'function') renderClientsTab();
+      if (typeof renderClientPickerList === 'function') renderClientPickerList();
+      toast(`Clientes de la central: ${changed} ✓`, 'ok');
+    }
+  } catch (e) {
+    console.warn('pullClientsFromCloud:', e && e.message);
+  } finally {
+    _pullClientsBusy = false;
   }
 }
 
