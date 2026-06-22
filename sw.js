@@ -12,7 +12,7 @@
 // usuarios reciben la última versión sin bump manual.
 // ════════════════════════════════════════════════════════════════════
 
-const CACHE = 'stockvendedor-20260622-115558';
+const CACHE = 'stockvendedor-20260622-131457';
 
 // Recursos propios (mismo origen) — se precachean al instalar.
 const PRECACHE = [
