@@ -291,6 +291,10 @@ Dos canales equivalentes, según haya nube o no:
 - **Comisiones por vendedor**: % editable por vendedor (se guarda en
   `state.treasury.commissions`), aplicado sobre las ventas confirmadas de su
   cartera en el mes (pestaña Caja → Reportes de StockMerger).
+- **Imputación de pagos a comprobantes** (solo central, StockMerger) — HECHO
+  (2026-06-22): un pago puede aplicarse a pedidos puntuales (`allocations`); lo
+  no imputado queda "a cuenta". La deuda total no cambia. Nada de esto toca a
+  StockVendedor (es contabilidad local de la central).
 
 ## Notas de desarrollo
 
