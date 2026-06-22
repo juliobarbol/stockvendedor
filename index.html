@@ -8,6 +8,30 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="StockVendedor">
 <meta name="theme-color" content="#0d0f14">
+<script>
+/* Tema claro/oscuro: se aplica antes de pintar para evitar parpadeo. */
+(function(){
+  try{
+    var KEY='ui_theme';
+    window.applyTheme=function(t){
+      if(t){try{localStorage.setItem(KEY,t);}catch(e){}}
+      else{try{t=localStorage.getItem(KEY);}catch(e){} t=t||'dark';}
+      document.documentElement.setAttribute('data-theme',t);
+      var m=document.querySelector('meta[name="theme-color"]');
+      if(m)m.setAttribute('content',t==='light'?'#eef1f6':'#0d0f14');
+      var b=document.getElementById('themeToggleBtn');
+      if(b)b.textContent=(t==='light'?'🌙 Modo oscuro':'☀️ Modo claro');
+      return t;
+    };
+    window.toggleTheme=function(){
+      var cur=document.documentElement.getAttribute('data-theme')||'dark';
+      window.applyTheme(cur==='light'?'dark':'light');
+    };
+    window.applyTheme();
+    document.addEventListener('DOMContentLoaded',function(){window.applyTheme();});
+  }catch(e){}
+})();
+</script>
 <title>StockVendedor</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -36,6 +60,19 @@
   --red: #ff4757;
   --blue: #4a90e2;
   --tap: 44px;
+}
+html[data-theme="light"] {
+  --bg: #eef1f6;
+  --surface: #ffffff;
+  --surface2: #f1f4f9;
+  --border: #d4dae6;
+  --text: #1b2533;
+  --muted: #5d6b7e;
+  --accent: #00a06a;
+  --accent2: #d98300;
+  --warn: #b8860b;
+  --red: #e03145;
+  --blue: #2f6fc4;
 }
 html, body {
   background: var(--bg);
@@ -69,6 +106,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   color: var(--accent); letter-spacing: -0.02em;
 }
 .hero-sub { color: var(--muted); margin-top: .35rem; font-size: .78rem; }
+.theme-toggle { margin-top: .85rem; background: var(--surface2); border: 1px solid var(--border); color: var(--text); font-family: inherit; font-size: .72rem; padding: .45rem .9rem; border-radius: 999px; cursor: pointer; min-height: var(--tap); -webkit-tap-highlight-color: transparent; }
+.theme-toggle:active { background: var(--surface); }
 
 /* SECTION */
 .section-title {
@@ -77,8 +116,16 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   text-transform: uppercase; letter-spacing: .05em;
   margin-bottom: .5rem;
 }
-.config-section { padding: 1rem 1rem; border-top: 1px solid var(--border); }
-.config-section:first-of-type { border-top: none; }
+/* Piloto estilo DaisyUI (solo pantalla Inicio): cada sección es una "card"
+   limpia — fondo propio, borde suave, esquinas redondeadas y aire entre sí. */
+.config-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.1rem 1.1rem 1.2rem;
+  margin: 0 1rem 1rem;
+}
+.config-section:first-of-type { margin-top: 1rem; }
 
 .field-group { margin-bottom: .75rem; }
 .field-group label {
@@ -154,9 +201,11 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .btn-template:active { opacity: .82; }
 
 .template-section {
-  padding: .75rem 1rem .25rem;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: .25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  margin: .75rem 1rem 0;
+  padding: 1rem;
 }
 .template-section-title {
   font-family: 'Syne', sans-serif; font-weight: 700;
@@ -267,6 +316,32 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   border: 1px solid var(--border); border-radius: 8px;
   padding: .3rem .5rem; font-size: .72rem; font-family: inherit;
 }
+
+/* ── Desplegable propio (reemplaza la lista nativa del <select>, que el
+   sistema pinta a su manera). El <select> queda oculto pero funcional:
+   sigue disparando su onchange. Ver enhanceSelect() en UI.JS. ── */
+.csel { position: relative; display: inline-flex; flex: 1; max-width: 250px; }
+.csel-native { position: absolute; left: 0; top: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; }
+.csel-trigger {
+  flex: 1; width: 100%; text-align: left; cursor: pointer;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: .3rem 1.5rem .3rem .5rem; font-size: .72rem; font-family: inherit;
+  position: relative; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  -webkit-tap-highlight-color: transparent;
+}
+.csel-trigger::after { content: '▾'; position: absolute; right: .5rem; top: 50%; transform: translateY(-50%); color: var(--muted); }
+.csel-pop {
+  display: none; position: fixed; z-index: 3000;
+  max-width: 90vw; max-height: 50vh; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.35);
+}
+.csel-pop.show { display: block; }
+.csel-opt { padding: .6rem .7rem; font-size: .78rem; color: var(--text); cursor: pointer; white-space: nowrap; border-bottom: 1px solid var(--border); }
+.csel-opt:last-child { border-bottom: none; }
+.csel-opt.on { color: var(--accent); font-weight: 700; }
+.csel-opt:active { background: var(--surface2); }
 
 /* ── Grupos plegables del catálogo (por marca/rubro) ── */
 .group-header {
@@ -677,9 +752,9 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 /* Buscador de productos */
 .order-search-section {
   background: var(--surface);
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  margin-top: .5rem;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  margin: .75rem 1rem 0;
   padding-bottom: .5rem;
 }
 .order-search-wrap {
@@ -1122,9 +1197,37 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .badge-cloud-ok   { background: #dcfce7; color: #166534; }
 .badge-cloud-pend { background: #fef9c3; color: #854d0e; }
 
+/* Diálogo de confirmar propio (reemplaza el confirm() del navegador) */
+.app-modal-overlay{position:fixed;inset:0;z-index:4000;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:1.5rem}
+.app-modal{width:100%;max-width:420px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:1.2rem;box-shadow:0 16px 48px rgba(0,0,0,.35)}
+.app-modal-msg{font-size:.85rem;color:var(--text);line-height:1.5;white-space:pre-wrap;max-height:55vh;overflow-y:auto}
+.app-modal-actions{display:flex;justify-content:flex-end;gap:.6rem;margin-top:1.1rem}
+.app-modal-btn{min-height:var(--tap);padding:.5rem 1.1rem;border-radius:10px;font-weight:700;font-size:.85rem;cursor:pointer;border:1px solid var(--border);-webkit-tap-highlight-color:transparent}
+.app-modal-cancel{background:var(--surface2);color:var(--text)}
+.app-modal-ok{background:var(--accent);color:#0d0f14;border-color:var(--accent)}
+.app-modal-danger{background:#e5484d;color:#fff;border-color:#e5484d}
+
 </style>
 </head>
 <body>
+
+<!-- ══ Pantalla de login (gate de acceso) ══
+     Tapa la app hasta que haya sesión iniciada. Solo aparece si la nube está
+     configurada y no hay sesión guardada. Una vez logueado, persiste y la app
+     funciona también offline (ver authGateRefresh en SUPABASE.JS). -->
+<div id="authGate" style="display:none;position:fixed;inset:0;z-index:99999;background:#0b0f14;flex-direction:column;align-items:center;justify-content:center;padding:1.5rem">
+  <div style="width:100%;max-width:360px;display:flex;flex-direction:column;gap:.7rem;text-align:center">
+    <div style="font-size:2.4rem">🔒</div>
+    <h2 style="margin:0;font-size:1.25rem;color:#e6edf3">Iniciar sesión</h2>
+    <p style="margin:0 0 .3rem;font-size:.8rem;color:#8b98a5">Ingresá con tu usuario para usar la app.</p>
+    <input type="email" id="gateEmail" placeholder="Email" autocomplete="email" style="padding:.7rem;border-radius:8px;border:1px solid #30363d;background:#161b22;color:#e6edf3;font-size:.95rem">
+    <input type="password" id="gatePass" placeholder="Contraseña" autocomplete="current-password" onkeydown="if(event.key==='Enter')authGateLogin()" style="padding:.7rem;border-radius:8px;border:1px solid #30363d;background:#161b22;color:#e6edf3;font-size:.95rem">
+    <div id="gateCaptcha" style="display:flex;justify-content:center;min-height:1px"></div>
+    <button onclick="authGateLogin()" style="padding:.75rem;border-radius:8px;border:none;background:#2ea043;color:#fff;font-size:.95rem;font-weight:600;cursor:pointer">🔑 Entrar</button>
+    <div id="gateStatus" style="min-height:1.1rem;font-size:.78rem;color:#f0883e"></div>
+    <button onclick="authGateConfig()" style="background:none;border:none;color:#8b98a5;font-size:.74rem;text-decoration:underline;cursor:pointer">⚙ Configurar conexión</button>
+  </div>
+</div>
 
 <!-- ══ TAB: INICIO ══ -->
 <div class="tab-page active" id="pageHome">
@@ -1132,6 +1235,7 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
     <div class="home-hero">
       <h1 class="hero-title">VENDEDOR</h1>
       <p class="hero-sub">configurá tu usuario y descargá los datos de central</p>
+      <button class="theme-toggle" id="themeToggleBtn" onclick="toggleTheme()" type="button">☀️ Modo claro</button>
     </div>
 
     <div class="config-section">
@@ -1144,7 +1248,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
         <label>Código corto (3-4 letras)</label>
         <input type="text" id="homeUserCode" placeholder="Ej: JUA" autocomplete="off" maxlength="6" style="text-transform:uppercase">
       </div>
-      <button class="btn-save-config" onclick="saveUserConfig()">Guardar</button>
+      <button class="btn-save-config" id="saveUserBtn" onclick="saveUserConfig()">Guardar</button>
+      <p class="info-text" id="homeIdentityNote" style="display:none">🔒 Tu nombre y código vienen de tu cuenta. No se pueden cambiar acá (así no se duplican vendedores). Si hay un error, avisale a la central.</p>
     </div>
 
     <div class="config-section">
@@ -1168,12 +1273,39 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
       <div class="section-title">☁️ Nube (Supabase)</div>
       <p class="info-text">Opcional. Si la central te pasó la URL, la key y el ID de tienda, podés traer el catálogo sin archivos. Si no hay internet, importá el archivo .json.</p>
       <div class="sb-config">
-        <input type="text" id="sbUrl" placeholder="URL (https://xxxxx.supabase.co)" autocomplete="off">
-        <input type="password" id="sbKey" placeholder="anon public key" autocomplete="off">
-        <input type="text" id="sbNs" placeholder="ID de tienda (default)" autocomplete="off">
-        <div class="sb-btn-row">
-          <button class="btn-save-config" onclick="scSaveConfigFromUI()">💾 Guardar</button>
-          <button class="btn-save-config btn-ghost" onclick="scTestConnection()">🔌 Probar</button>
+        <!-- Candado anti-miradas: con la nube ya conectada, las claves quedan
+             ocultas detrás de una contraseña (sbLockRefresh, SUPABASE.JS). -->
+        <div id="sbLockBox" style="display:none">
+          <p class="info-text" style="margin:0 0 .45rem">
+            ✅ Conectado a la nube — tienda «<span id="sbLockNs"></span>» ·
+            clave guardada (termina en <span id="sbLockTail"></span>)
+          </p>
+          <button class="btn-save-config" onclick="sbUnlockConfig()" style="width:100%">
+            🔒 Ver / editar conexión
+          </button>
+        </div>
+        <div id="sbLoginBox" style="display:none;flex-direction:column;gap:.45rem">
+          <div id="sbSessionInfo" style="display:none">
+            <p class="info-text" style="margin:0 0 .3rem">👤 Sesión activa: <b><span id="sbSessionEmail"></span></b></p>
+            <button class="btn-save-config btn-ghost" onclick="sbLogout()" style="width:100%">Cerrar sesión</button>
+          </div>
+          <div id="sbLoginForm" style="display:none;flex-direction:column;gap:.45rem">
+            <p class="info-text" style="margin:0 0 .2rem">Ingresá con tu usuario para sincronizar:</p>
+            <input type="email" id="sbLoginEmail" placeholder="Email" autocomplete="email">
+            <input type="password" id="sbLoginPass" placeholder="Contraseña" autocomplete="current-password" onkeydown="if(event.key==='Enter')sbLogin()">
+            <div id="sbLoginCaptcha" style="display:flex;justify-content:center;min-height:1px"></div>
+            <button class="btn-save-config" onclick="sbLogin()">🔑 Iniciar sesión</button>
+          </div>
+        </div>
+        <div id="sbConfigBox" style="display:flex;flex-direction:column;gap:.5rem">
+          <input type="text" id="sbUrl" placeholder="URL (https://xxxxx.supabase.co)" autocomplete="off">
+          <input type="password" id="sbKey" placeholder="anon public key" autocomplete="off">
+          <input type="text" id="sbNs" placeholder="ID de tienda (default)" autocomplete="off">
+          <div class="sb-btn-row">
+            <button class="btn-save-config" onclick="scSaveConfigFromUI()">💾 Guardar</button>
+            <button class="btn-save-config btn-ghost" onclick="scTestConnection()">🔌 Probar</button>
+            <button class="btn-save-config btn-ghost" id="sbHideBtn" onclick="sbHideConfig()" style="display:none">🔒 Ocultar</button>
+          </div>
         </div>
         <button class="btn-import" onclick="pullCatalog()" style="width:100%;justify-content:center;cursor:pointer">
           <span>☁⬇</span>
@@ -1447,6 +1579,15 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
       </div>
     </div>
     <div class="field-group">
+      <label>Domicilio <span style="opacity:.6;font-weight:400">(opcional)</span></label>
+      <input type="text" id="clientEditDomicilio" placeholder="Dirección del cliente"
+        autocomplete="off" autocapitalize="words">
+    </div>
+    <div class="field-group">
+      <label>Teléfono <span style="opacity:.6;font-weight:400">(opcional)</span></label>
+      <input type="tel" id="clientEditTelefono" placeholder="Teléfono del cliente" autocomplete="off">
+    </div>
+    <div class="field-group">
       <label>Notas (solo las ves vos)</label>
       <textarea id="clientEditNotes" rows="3" placeholder="Info del cliente para no olvidar..."></textarea>
     </div>
@@ -1488,6 +1629,17 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
       <button class="btn-choice-save" id="orderChoiceSaveBtn" onclick="orderChoiceSave()">💾 Guardar</button>
       <button class="btn-choice-discard" id="orderChoiceDiscardBtn" onclick="orderChoiceDiscard()">🗑 Descartar</button>
       <button class="btn-choice-cancel" onclick="closeOrderChoiceOverlay()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: confirmar (reemplaza al confirm() del navegador) ══ -->
+<div id="appConfirmOverlay" class="app-modal-overlay" style="display:none" onclick="if(event.target===this)_appConfirmClose(false)">
+  <div class="app-modal">
+    <div class="app-modal-msg" id="appConfirmMsg"></div>
+    <div class="app-modal-actions">
+      <button class="app-modal-btn app-modal-cancel" id="appConfirmCancel" onclick="_appConfirmClose(false)">Cancelar</button>
+      <button class="app-modal-btn app-modal-ok" id="appConfirmOk" onclick="_appConfirmClose(true)">Aceptar</button>
     </div>
   </div>
 </div>
@@ -1922,6 +2074,32 @@ function fmtMoney(n) {
 
 function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
+// ── Diálogo de confirmar propio (reemplaza el confirm() del navegador) ──
+// Devuelve una promesa que resuelve true (Aceptar) o false (Cancelar). Uso:
+//   if (!await appConfirm('¿Borrar?')) return;
+//   if (!await appConfirm({ message:'...', okText:'Borrar', danger:true })) return;
+let _appConfirmResolve = null;
+function appConfirm(opts) {
+  if (typeof opts === 'string') opts = { message: opts };
+  opts = opts || {};
+  return new Promise(resolve => {
+    _appConfirmResolve = resolve;
+    document.getElementById('appConfirmMsg').textContent = opts.message || '';
+    const ok = document.getElementById('appConfirmOk');
+    const cancel = document.getElementById('appConfirmCancel');
+    ok.textContent = opts.okText || 'Aceptar';
+    cancel.textContent = opts.cancelText || 'Cancelar';
+    ok.classList.toggle('app-modal-danger', !!opts.danger);
+    document.getElementById('appConfirmOverlay').style.display = 'flex';
+    setTimeout(() => { try { cancel.focus(); } catch (e) {} }, 50);
+  });
+}
+function _appConfirmClose(val) {
+  document.getElementById('appConfirmOverlay').style.display = 'none';
+  const r = _appConfirmResolve; _appConfirmResolve = null;
+  if (r) r(!!val);
+}
+
 // Escape HTML — usar SIEMPRE al interpolar strings de usuario o datos
 // externos en HTML. El cliente puede escribir cualquier cosa en el input
 // "nombre del cliente", y los nombres de productos vienen del JSON exportado
@@ -2320,9 +2498,9 @@ function applyVendorData(data, opts = {}) {
 // ════════════════════════════════════════════════════════════════════
 
 const GRAN_RESET_PASS = 'opbayresgranreset';
-const GRAN_RESET_KEEP = ['sb_config'];
+const GRAN_RESET_KEEP = ['sb_config', 'sb-dxntcbssxjxtxznkdsot-auth-token', 'event_log_queue'];
 
-function granReset() {
+async function granReset() {
   const pass = prompt(
     '🧨 GRAN RESET\n\n' +
     'Esto borra TODOS los datos de la app en este teléfono (catálogo, ' +
@@ -2334,12 +2512,17 @@ function granReset() {
     toast('Contraseña incorrecta — no se borró nada.', 'err');
     return;
   }
-  if (!confirm(
-    '⚠️ ÚLTIMA CONFIRMACIÓN\n\nSe va a borrar TODO lo guardado en este teléfono:\n' +
+  if (!await appConfirm({
+    message: '⚠️ ÚLTIMA CONFIRMACIÓN\n\nSe va a borrar TODO lo guardado en este teléfono:\n' +
     '• Catálogo (stock y precios)\n• Pedidos enviados y pedido en curso\n' +
     '• Libreta de clientes\n• Usuario configurado\n\n' +
-    'Se conserva la conexión a la nube.\n\n¿Borrar todo?'
-  )) return;
+    'Se conserva la conexión a la nube.\n\n¿Borrar todo?',
+    okText: 'Borrar todo', danger: true
+  })) return;
+
+  // Registrar el gran reset y subirlo ya (la cola se conserva en GRAN_RESET_KEEP).
+  logEvent('gran_reset', { severity: 'warn', summary: 'Gran reset del vendedor (borrado local)' });
+  try { await _logFlush(); } catch (e) {}
 
   try {
     const keys = [];
@@ -2432,7 +2615,11 @@ function scClient() {
 
   try {
     _sbClient = window.supabase.createClient(c.url, c.anonKey, {
-      auth: { persistSession: false },
+      auth: {
+        persistSession: true,        // guarda la sesión en localStorage (login por persona)
+        autoRefreshToken: true,      // renueva el token solo cuando hay internet
+        storageKey: SB_AUTH_KEY,     // sb-<ref>-auth-token (lo lee el gate)
+      },
     });
     _sbClientKey = key;
     return _sbClient;
@@ -2460,7 +2647,256 @@ function scSaveConfigFromUI() {
   scSaveConfig({ url, anonKey, ns });
   scStatus('Configuración guardada ✓', 'ok');
   toast('Configuración de nube guardada ✓', 'ok');
+  _sbCfgUnlocked = false;   // recién guardada → vuelve a quedar oculta
+  sbLockRefresh();
   if (typeof rtStart === 'function') setTimeout(rtStart, 300);
+}
+
+// ── Candado anti-miradas de la config de nube ──
+// Con la nube ya conectada, la sección de URL/key/tienda se reemplaza por un
+// resumen y solo se abre con contraseña. Igual que la del gran reset, es un
+// guard contra miradas ajenas en la pantalla, NO seguridad real (el código
+// es público); la protección de fondo son las policies de la base.
+const SB_CFG_PASS = 'opbayressincnube';
+let _sbCfgUnlocked = false;
+
+function sbLockRefresh() {
+  const lock     = document.getElementById('sbLockBox');
+  const box      = document.getElementById('sbConfigBox');
+  const loginBox = document.getElementById('sbLoginBox');
+  if (!lock || !box) return;
+  const c = scGetConfig();
+  const hasCfg = !!(c.url && c.anonKey);
+  const locked = hasCfg && !_sbCfgUnlocked;
+  lock.style.display = locked ? '' : 'none';
+  box.style.display  = locked ? 'none' : 'flex';
+  const hideBtn = document.getElementById('sbHideBtn');
+  if (hideBtn) hideBtn.style.display = (!locked && hasCfg) ? '' : 'none';
+  if (locked) {
+    const ns   = document.getElementById('sbLockNs');
+    const tail = document.getElementById('sbLockTail');
+    if (ns)   ns.textContent   = c.ns || 'default';
+    if (tail) tail.textContent = '…' + c.anonKey.slice(-4);
+  }
+  if (loginBox) {
+    loginBox.style.display = (hasCfg && locked) ? 'flex' : 'none';
+    const sess        = _sbGetSession();
+    const loginForm   = document.getElementById('sbLoginForm');
+    const sessionInfo = document.getElementById('sbSessionInfo');
+    if (loginForm)   loginForm.style.display   = sess ? 'none' : 'flex';
+    if (sessionInfo) sessionInfo.style.display = sess ? ''     : 'none';
+    if (!sess) _ensureCaptcha('sbLoginCaptcha');
+    const emailEl = document.getElementById('sbSessionEmail');
+    if (emailEl && sess) emailEl.textContent = sess.user?.email || '';
+  }
+}
+
+function sbUnlockConfig() {
+  const pass = prompt('Contraseña para ver/editar la conexión:');
+  if (pass === null) return;
+  if (pass.trim() !== SB_CFG_PASS) { toast('Contraseña incorrecta.', 'err'); return; }
+  _sbCfgUnlocked = true;
+  sbLockRefresh();
+}
+
+function sbHideConfig() {
+  _sbCfgUnlocked = false;
+  sbLockRefresh();
+}
+
+// ── Login / sesión de usuario ──
+const SB_AUTH_KEY = 'sb-dxntcbssxjxtxznkdsot-auth-token';
+let _authGateBypass = false;   // true cuando se abre la config desde el gate
+
+// Sesión "válida ahora" (para el resumen): exige que el token no esté vencido.
+function _sbGetSession() {
+  try {
+    const raw = localStorage.getItem(SB_AUTH_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (!s?.user) return null;
+    if (s.expires_at && (Date.now() / 1000) > s.expires_at) return null;
+    return s;
+  } catch { return null; }
+}
+// ¿Hay una sesión GUARDADA? (sin exigir token vigente) — sirve para el gate:
+// offline el token puede estar vencido pero la persona ya se identificó; el
+// refresh token deja que supabase-js lo renueve al recuperar internet.
+function _sbHasStoredSession() {
+  try {
+    const raw = localStorage.getItem(SB_AUTH_KEY);
+    if (!raw) return false;
+    const s = JSON.parse(raw);
+    return !!(s && s.user && s.refresh_token);
+  } catch { return false; }
+}
+// Usuario guardado (aunque el token esté vencido) — sirve para leer la
+// identidad fija de la cuenta también offline.
+function _sbStoredUser() {
+  try {
+    const raw = localStorage.getItem(SB_AUTH_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    return s?.user || null;
+  } catch { return null; }
+}
+// Nombre + código corto FIJOS de la cuenta (app_metadata, que el propio
+// usuario NO puede editar). Si la cuenta los trae, pisan state.user para que
+// la identidad del vendedor sea única y no se puedan crear vendedores nuevos
+// editando el nombre a mano. Devuelve true si la identidad viene de la cuenta.
+function _sbAccountIdentity() {
+  const meta = _sbStoredUser()?.app_metadata || {};
+  const name = meta.vendor_name || '';
+  const code = meta.vendor_code || '';
+  return (name || code) ? { name, code } : null;
+}
+function applyVendorIdentity() {
+  const id = _sbAccountIdentity();
+  if (!id) return false;
+  let changed = false;
+  if (state.user.name !== id.name) { state.user.name = id.name; changed = true; }
+  if (state.user.code !== id.code) { state.user.code = id.code; changed = true; }
+  if (changed && typeof saveUser === 'function') saveUser();
+  return true;
+}
+// ── Captcha de login (auditoría F2): Cloudflare Turnstile ──
+// Protege el inicio de sesión contra fuerza bruta. El token viaja a Supabase
+// en signInWithPassword({ options:{ captchaToken } }); Supabase lo valida con
+// la clave SECRETA (guardada SOLO en el server, nunca acá). La Site Key es
+// pública por diseño. Si el script no carga (sin internet / bloqueado), el
+// login sigue intentándose sin token: con el captcha apagado en el server no
+// molesta, y si está prendido Supabase devuelve un error claro que mostramos.
+const TURNSTILE_SITEKEY = '0x4AAAAAADn5nDWSnFUczyWP';
+let _tsLoading = null;
+function _loadTurnstile() {
+  if (window.turnstile) return Promise.resolve(true);
+  if (_tsLoading) return _tsLoading;
+  _tsLoading = new Promise((resolve) => {
+    const s = document.createElement('script');
+    s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    s.async = true; s.defer = true;
+    s.onload  = () => resolve(true);
+    s.onerror = () => { _tsLoading = null; resolve(false); };
+    document.head.appendChild(s);
+  });
+  return _tsLoading;
+}
+async function _ensureCaptcha(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el || el.dataset.tsId) return;          // sin contenedor o ya renderizado
+  const ok = await _loadTurnstile();
+  if (!ok || !window.turnstile || el.dataset.tsId) return;
+  try {
+    const id = window.turnstile.render(el, {
+      sitekey: TURNSTILE_SITEKEY,
+      callback:           (t) => { el._captchaToken = t;  },
+      'expired-callback': ()  => { el._captchaToken = ''; },
+      'error-callback':   ()  => { el._captchaToken = ''; },
+    });
+    el.dataset.tsId = id;
+  } catch (e) { /* si falla el render, el login sigue sin token */ }
+}
+function _captchaToken(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return '';
+  if (el._captchaToken) return el._captchaToken;
+  try {
+    if (window.turnstile && el.dataset.tsId)
+      return window.turnstile.getResponse(el.dataset.tsId) || '';
+  } catch (e) {}
+  return '';
+}
+function _captchaReset(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el._captchaToken = '';
+  try { if (window.turnstile && el.dataset.tsId) window.turnstile.reset(el.dataset.tsId); } catch (e) {}
+}
+
+// Login compartido por el gate y por el formulario de la sección de conexión.
+async function _sbDoLogin(email, pass, captchaToken) {
+  if (!email || !pass) return { ok:false, msg:'Ingresá email y contraseña.' };
+  if (typeof scLibReady === 'function' && !scLibReady())
+    return { ok:false, msg:'La nube no cargó (¿sin internet?). Conectate e intentá de nuevo.' };
+  const client = scClient();
+  if (!client) return { ok:false, msg:'Primero configurá la conexión a la nube.' };
+  const options = captchaToken ? { captchaToken } : undefined;
+  const { error } = await client.auth.signInWithPassword({ email, password: pass, options });
+  if (error) {
+    const m = (error.message || '').toLowerCase();
+    if (m.includes('captcha'))
+      return { ok:false, msg:'Completá la verificación "no soy un robot" e intentá de nuevo.' };
+    return { ok:false, msg:'No se pudo iniciar sesión. Verificá email y contraseña.' };
+  }
+  addBreadcrumb('login', { email });
+  try { setTimeout(_logFlush, 1000); } catch (e) {}   // subir lo que haya quedado en cola
+  return { ok:true };
+}
+
+// Gate de acceso: tapa la app si la nube está configurada y no hay sesión.
+function authGateRefresh() {
+  const gate = document.getElementById('authGate');
+  if (!gate) return;
+  if (_authGateBypass) { gate.style.display = 'none'; document.body.style.overflow = ''; return; }
+  const c = scGetConfig();
+  const cloudOn = !!(c.url && c.anonKey);
+  const show = cloudOn && !_sbHasStoredSession();
+  gate.style.display = show ? 'flex' : 'none';
+  document.body.style.overflow = show ? 'hidden' : '';
+  if (show) _ensureCaptcha('gateCaptcha');
+}
+async function authGateLogin() {
+  const email = document.getElementById('gateEmail')?.value?.trim();
+  const pass  = document.getElementById('gatePass')?.value;
+  const st = document.getElementById('gateStatus');
+  if (st) st.textContent = 'Iniciando sesión…';
+  const r = await _sbDoLogin(email, pass, _captchaToken('gateCaptcha'));
+  _captchaReset('gateCaptcha');
+  if (!r.ok) { if (st) st.textContent = r.msg; return; }
+  if (st) st.textContent = '';
+  const p = document.getElementById('gatePass'); if (p) p.value = '';
+  _authGateBypass = false;
+  applyVendorIdentity();
+  if (typeof renderHomeTab === 'function') renderHomeTab();
+  authGateRefresh();
+  if (typeof sbLockRefresh === 'function') sbLockRefresh();
+  if (typeof rtStart === 'function') setTimeout(rtStart, 300);
+  if (typeof flushOrderQueue === 'function') setTimeout(flushOrderQueue, 800);
+}
+// Escape para configurar la conexión (URL/key) cuando aún no hay con qué
+// loguearse. Protegido por la contraseña del candado.
+function authGateConfig() {
+  const pass = prompt('Contraseña para configurar la conexión:');
+  if (pass === null) return;
+  if (pass.trim() !== SB_CFG_PASS) { alert('Contraseña incorrecta.'); return; }
+  _authGateBypass = true;
+  _sbCfgUnlocked = true;
+  authGateRefresh();
+  if (typeof sbLockRefresh === 'function') sbLockRefresh();
+  const box = document.getElementById('sbConfigBox');
+  if (box && box.scrollIntoView) box.scrollIntoView({ behavior:'smooth', block:'center' });
+}
+
+async function sbLogin() {
+  const email = document.getElementById('sbLoginEmail')?.value?.trim();
+  const pass  = document.getElementById('sbLoginPass')?.value;
+  scStatus('Iniciando sesión…', '');
+  const r = await _sbDoLogin(email, pass, _captchaToken('sbLoginCaptcha'));
+  _captchaReset('sbLoginCaptcha');
+  if (!r.ok) { scStatus(r.msg, 'err'); return; }
+  scStatus('Sesión iniciada ✓', 'ok');
+  applyVendorIdentity();
+  if (typeof renderHomeTab === 'function') renderHomeTab();
+  authGateRefresh();
+  sbLockRefresh();
+}
+async function sbLogout() {
+  const client = scClient();
+  if (client) await client.auth.signOut();
+  scStatus('Sesión cerrada.', '');
+  _authGateBypass = false;
+  authGateRefresh();
+  sbLockRefresh();
 }
 
 async function scTestConnection() {
@@ -2504,7 +2940,31 @@ async function scTestConnection() {
 // DESCARGAR CATÁLOGO — baja la fila de la nube y la aplica con
 // applyVendorData() (mismo camino que importar el archivo .json).
 // ════════════════════════════════════════════════════════════════════
+// Guard anti-spam (auditoría F3 / M8): evita que apretar el botón ☁⬇ varias
+// veces seguidas — o una ráfaga de eventos de Realtime — dispare varias
+// bajadas simultáneas contra la nube. Una sola a la vez + un respiro corto.
+// Mismo espíritu que `_pullOrdersBusy` en la central.
+let _pullingCatalog  = false;
+let _lastCatalogPull = 0;
+const CATALOG_PULL_COOLDOWN = 1500; // ms
+
 async function pullCatalog(opts = {}) {
+  const auto = !!opts.auto;
+  if (_pullingCatalog) return;                         // ya hay una bajada en curso
+  if (Date.now() - _lastCatalogPull < CATALOG_PULL_COOLDOWN) {
+    if (!auto) scStatus('Esperá un momento antes de volver a sincronizar…', '');
+    return;
+  }
+  _pullingCatalog  = true;
+  _lastCatalogPull = Date.now();
+  try {
+    return await _doPullCatalog(opts);
+  } finally {
+    _pullingCatalog = false;
+  }
+}
+
+async function _doPullCatalog(opts = {}) {
   const auto = !!opts.auto; // disparado por Realtime: sin confirmaciones ni toasts ruidosos
   if (!scLibReady()) {
     if (!auto) {
@@ -2536,6 +2996,7 @@ async function pullCatalog(opts = {}) {
 
     if (error) {
       console.error('pullCatalog error:', error);
+      logEvent('catalog.pull.fail', { severity: 'error', summary: 'Error al descargar catálogo: ' + (error.message || '?'), error, meta: { auto } });
       if (!auto) {
         toast('Error al descargar: ' + (error.message || 'desconocido'), 'err');
         scStatus('Error al descargar: ' + (error.message || 'desconocido'), 'err');
@@ -2575,6 +3036,7 @@ async function pullCatalog(opts = {}) {
     }
   } catch (e) {
     console.error('pullCatalog exception:', e);
+    logEvent('catalog.pull.fail', { severity: 'error', summary: 'Excepción al descargar catálogo', error: e, meta: { auto } });
     if (!auto) {
       toast('Error de red al descargar: ' + (e.message || 'sin conexión'), 'err');
       scStatus('Error de red: ' + (e.message || 'sin conexión'), 'err');
@@ -2665,9 +3127,11 @@ async function pushOrderSafe(order) {
   if (ok) {
     _dequeueOrder(order.id);
     _setOrderCloudStatus(order.id, 'sent');
+    addBreadcrumb('order.send', { id: order.id, client: order.client || '' });
   } else {
     _enqueueOrder(order);
     _setOrderCloudStatus(order.id, 'queued');
+    logEvent('order.send.fail', { severity: 'warn', summary: 'Pedido a la nube falló; quedó en cola', meta: { id: order.id, client: order.client || '' } });
     toast('Sin conexión: el pedido quedó en cola y se subirá solo. (El Excel ya se generó.)', 'err');
   }
   if (typeof renderOrdersTab === 'function') renderOrdersTab();
@@ -2742,6 +3206,9 @@ function scInitUI() {
   if (u) u.value = c.url;
   if (k) k.value = c.anonKey;
   if (n) n.value = c.ns;
+  sbLockRefresh();
+  authGateRefresh();
+  applyVendorIdentity();   // si hay sesión con identidad de cuenta, la fija ya
 
   if (!scLibReady()) {
     scStatus('Modo offline: la nube no cargó. La app funciona igual; importá el archivo.', '');
@@ -2791,6 +3258,292 @@ document.addEventListener('visibilitychange', () => {
 setInterval(() => {
   if (document.visibilityState === 'visible') flushOrderQueue();
 }, 60000);
+
+// ════════════════════════════════════════════════════════════════════
+// LOG.JS — StockVendedor — bitácora de diagnóstico (errores + contexto)
+// ════════════════════════════════════════════════════════════════════
+//
+// NO es un log visible para el usuario: es una bitácora REMOTA para
+// diagnosticar cuando alguien reporta un error. Captura los crashes de JS
+// (window.onerror / unhandledrejection) y los fallos de operaciones
+// riesgosas, con stack, contexto del dispositivo y "migas de pan" (las
+// últimas acciones antes del error). Cada error le muestra al usuario un
+// código corto (ref) para que lo cite al avisar; nosotros lo buscamos en la
+// tabla `event_log` de Supabase por la Management API.
+//
+// Best-effort total: NUNCA tira excepción ni rompe la app. Si no hay nube,
+// no hace nada (modo file-only intacto). Si hay nube pero falla la subida
+// (offline / sin sesión), el evento queda en una cola local y se reintenta
+// al volver la conexión (igual que la cola de pedidos).
+// ════════════════════════════════════════════════════════════════════
+
+const LOG_APP       = 'vendor';   // 'merger' | 'vendor'
+const LOG_ROLE      = 'vendor';   // rol fijo de esta app
+const LOG_QUEUE_KEY = 'event_log_queue';
+const LOG_QUEUE_MAX = 200;        // tope de la cola local (no crece sin freno)
+const LOG_CRUMB_MAX = 25;         // migas de pan en memoria
+
+let _logCrumbs    = [];           // ring buffer de acciones recientes (en memoria)
+let _logSuppress  = false;        // anti-recursión: no loguear errores del propio logger
+let _logSwName    = '';           // nombre del cache del SW (≈ versión publicada)
+let _logFlushing  = false;        // evita subidas solapadas
+let _logLastToast = 0;            // throttle del aviso al usuario
+const _logRecent  = Object.create(null); // dedupe de errores idénticos
+
+// Nombre del cache del SW = proxy de la versión publicada (se actualiza solo
+// en cada deploy). Se lee una vez, async, al cargar.
+try {
+  if (window.caches && caches.keys) {
+    caches.keys().then(ks => {
+      _logSwName = (ks && (ks.find(k => /stock/i.test(k)) || ks[0])) || '';
+    }).catch(() => {});
+  }
+} catch (e) {}
+
+// Migas de pan: registra una acción significativa. NO se sube sola; viaja
+// adjunta al próximo error para reconstruir qué pasó antes.
+function addBreadcrumb(event, data) {
+  try {
+    _logCrumbs.push({ t: new Date().toISOString(), event, data: (data == null ? null : data) });
+    if (_logCrumbs.length > LOG_CRUMB_MAX) _logCrumbs.shift();
+  } catch (e) {}
+}
+
+// Código de referencia corto (ej. "A3F9") que se le muestra al usuario.
+function _logRef() {
+  try {
+    const n = (window.crypto && crypto.getRandomValues)
+      ? crypto.getRandomValues(new Uint32Array(1))[0]
+      : Math.floor(Math.random() * 0xffffffff);
+    return n.toString(36).toUpperCase().slice(-4).padStart(4, '0');
+  } catch (e) {
+    return String(Date.now()).slice(-4);
+  }
+}
+
+// Usuario guardado (aunque el token esté vencido) para llenar 'actor'.
+function _logStoredUser() {
+  try {
+    const raw = localStorage.getItem(SB_AUTH_KEY);
+    return raw ? (JSON.parse(raw)?.user || null) : null;
+  } catch (e) { return null; }
+}
+function _logActor() {
+  try {
+    const u = _logStoredUser();
+    if (!u) return '';
+    const m = u.app_metadata || {};
+    if (m.vendor_name || m.vendor_code) {
+      return (m.vendor_name || '') + (m.vendor_code ? ' (' + m.vendor_code + ')' : '');
+    }
+    return u.email || u.id || '';
+  } catch (e) { return ''; }
+}
+
+// Contexto del dispositivo (para diagnosticar sin estar ahí).
+function _logContext() {
+  const ctx = {};
+  try {
+    ctx.ua     = navigator.userAgent;
+    ctx.online = navigator.onLine;
+    ctx.url    = location.href;
+    ctx.lang   = navigator.language;
+    ctx.ver    = _logSwName;
+    if (window.screen) ctx.screen = screen.width + 'x' + screen.height;
+  } catch (e) {}
+  return ctx;
+}
+
+// Normaliza un Error (o lo que sea) a algo serializable, con stack.
+function _logErrInfo(err) {
+  try {
+    if (!err) return null;
+    if (err instanceof Error) return { name: err.name, message: err.message, stack: err.stack || '' };
+    if (typeof err === 'object') return { message: err.message || '', code: err.code || '', detail: String(err.detail || ''), stack: err.stack || '' };
+    return { message: String(err) };
+  } catch (e) { return null; }
+}
+
+// ── Cola local durable ──
+function _loadLogQueue() {
+  try {
+    const p = JSON.parse(localStorage.getItem(LOG_QUEUE_KEY) || '[]');
+    return Array.isArray(p) ? p : [];
+  } catch (e) { return []; }
+}
+function _saveLogQueue(q) {
+  try { localStorage.setItem(LOG_QUEUE_KEY, JSON.stringify(q)); } catch (e) {}
+}
+
+// Registra un evento. opts: { severity, summary, meta, error }.
+// Devuelve el código de referencia (siempre, aunque la subida falle).
+function logEvent(event, opts) {
+  const o = opts || {};
+  const ref = _logRef();
+  try {
+    if (typeof scIsConfigured !== 'function' || !scIsConfigured()) return ref; // sin nube: no registra
+    const meta = Object.assign({}, o.meta || {});
+    meta.ctx = _logContext();
+    meta.breadcrumbs = _logCrumbs.slice(-LOG_CRUMB_MAX);
+    if (o.error) meta.error = _logErrInfo(o.error);
+    const row = {
+      _qid:        ref + '-' + Date.now(),
+      ref,
+      ns:          (scGetConfig() || {}).ns || 'default',
+      app:         LOG_APP,
+      event:       String(event || '').slice(0, 120),
+      severity:    o.severity || 'info',
+      summary:     String(o.summary || '').slice(0, 4000),
+      meta,
+      actor:       _logActor(),
+      role:        LOG_ROLE,
+      occurred_at: new Date().toISOString(),
+    };
+    const q = _loadLogQueue();
+    q.push(row);
+    while (q.length > LOG_QUEUE_MAX) q.shift();   // tope: descarta lo más viejo
+    _saveLogQueue(q);
+    _logFlush();   // intento de subida inmediato (no se espera)
+  } catch (e) {
+    try { console.warn('logEvent:', e && e.message); } catch (_) {}
+  }
+  return ref;
+}
+
+// Sube lo que haya en la cola. Best-effort; requiere nube + sesión guardada.
+async function _logFlush() {
+  if (_logFlushing) return;
+  if (typeof scIsConfigured !== 'function' || !scIsConfigured() || !scLibReady()) return;
+  if (!_sbHasStoredSession()) return;            // sin sesión, RLS rechaza → esperar
+  const client = scClient();
+  if (!client) return;
+  if (!_loadLogQueue().length) return;
+  _logFlushing = true;
+  try {
+    const batch = _loadLogQueue().slice(0, 50);
+    const rows  = batch.map(r => { const x = Object.assign({}, r); delete x._qid; return x; });
+    const { error } = await client.from('event_log').insert(rows);
+    if (error) { try { console.warn('event_log flush:', error.message); } catch (_) {} return; }
+    const done = new Set(batch.map(r => r._qid));
+    _saveLogQueue(_loadLogQueue().filter(r => !done.has(r._qid)));
+  } catch (e) {
+    try { console.warn('event_log flush red:', e && e.message); } catch (_) {}
+  } finally {
+    _logFlushing = false;
+  }
+}
+
+// ── Captura automática de errores no atrapados ──
+// ── Aviso de error al usuario (tarjeta persistente con código + botones) ──
+// Nombre amigable de la app para los mensajes.
+const LOG_APP_NAME = (LOG_APP === 'merger') ? 'Central' : 'Vendedor';
+// Número de aviso por WhatsApp (ofuscado en base64 — el repo es PÚBLICO, esto
+// no es protección real, solo frena al curioso casual / robots simples).
+function _logWaNumber() { try { return atob('NTQ5MzUxNjUwNzY5OQ=='); } catch (e) { return ''; } }
+
+function _logReportText(ref) {
+  return 'App ' + LOG_APP_NAME + ' — error ref: ' + ref + ' — ' + new Date().toLocaleString('es-AR');
+}
+function _logCopy(text, btn) {
+  const done = () => { if (btn) { const o = btn.textContent; btn.textContent = '¡Copiado!'; setTimeout(() => { btn.textContent = o; }, 1500); } };
+  const fb = () => {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta); done();
+    } catch (e) {}
+  };
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(fb);
+    } else { fb(); }
+  } catch (e) { fb(); }
+}
+
+function _logShowRef(ref) {
+  try {
+    if (!document || !document.body) return;
+    const old = document.getElementById('logErrCard');
+    if (old) old.remove();
+    const text = _logReportText(ref);
+    const card = document.createElement('div');
+    card.id = 'logErrCard';
+    card.setAttribute('style', [
+      'position:fixed','left:12px','right:12px','top:12px','z-index:99999',
+      'max-width:520px','margin:0 auto','background:#1b1014','color:#fde2e2',
+      'border:1px solid #e57373','border-radius:12px','padding:14px',
+      'box-shadow:0 8px 30px rgba(0,0,0,.5)','font-family:inherit','font-size:14px'
+    ].join(';'));
+    card.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
+        '<div style="font-weight:700">⚠️ Ocurrió un error</div>' +
+        '<button data-act="close" style="background:none;border:none;color:#fde2e2;font-size:20px;line-height:1;cursor:pointer;padding:0 2px">×</button>' +
+      '</div>' +
+      '<div style="margin:6px 0 2px">Código: <span style="font-weight:700;font-size:18px;letter-spacing:1px">' + ref + '</span></div>' +
+      '<div style="opacity:.8;font-size:12px;margin-bottom:10px">App ' + LOG_APP_NAME + ' · pasale este código a Julio para que lo revise.</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+        '<button data-act="wa" style="flex:1;min-width:140px;background:#25d366;color:#04310f;border:none;border-radius:8px;padding:10px;font-weight:700;cursor:pointer">💬 Avisar por WhatsApp</button>' +
+        '<button data-act="copy" style="background:#33252a;color:#fde2e2;border:1px solid #e57373;border-radius:8px;padding:10px 12px;font-weight:600;cursor:pointer">📋 Copiar</button>' +
+      '</div>';
+    card.addEventListener('click', (ev) => {
+      const act = ev.target && ev.target.getAttribute && ev.target.getAttribute('data-act');
+      if (act === 'close') { card.remove(); }
+      else if (act === 'copy') { _logCopy(text, ev.target); }
+      else if (act === 'wa') {
+        const num = _logWaNumber();
+        if (!num) return;
+        const url = 'https://wa.me/' + num + '?text=' + encodeURIComponent('Hola Julio, me salió un error en la app ' + LOG_APP_NAME + '. ' + text);
+        try { window.open(url, '_blank'); } catch (e) { location.href = url; }
+      }
+    });
+    document.body.appendChild(card);
+  } catch (e) {}
+}
+function _logHandleError(event, summary, errObj, extraMeta) {
+  if (_logSuppress) return;
+  _logSuppress = true;
+  try {
+    const sig = event + '|' + (summary || '');     // dedupe: mismo error en <10s no se reencola
+    const now = Date.now();
+    if (_logRecent[sig] && (now - _logRecent[sig]) < 10000) return;
+    _logRecent[sig] = now;
+    const ref = logEvent(event, { severity: 'error', summary, error: errObj, meta: extraMeta });
+    _logShowRef(ref);
+  } catch (e) {
+    try { console.warn('logHandleError:', e && e.message); } catch (_) {}
+  } finally {
+    _logSuppress = false;
+  }
+}
+
+try {
+  window.addEventListener('error', (e) => {
+    if (!e || (!e.message && !e.error)) return;    // ignora errores de carga de recursos
+    _logHandleError('error.uncaught', (e.message) || 'Error', e.error,
+      { source: e.filename, line: e.lineno, col: e.colno });
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    const r = e && e.reason;
+    const msg = (r && r.message) ? r.message : (r ? String(r) : 'Promesa rechazada');
+    _logHandleError('error.promise', msg, r, null);
+  });
+  window.addEventListener('online', () => { _logFlush(); });
+} catch (e) {}
+
+// Al cargar el módulo, intentar subir lo que haya quedado de antes.
+try { _logFlush(); } catch (e) {}
+
+// Disparador de PRUEBA (oculto): abrir la app con #logtest en la dirección
+// genera un error inofensivo que recorre el camino real (window.onerror →
+// event_log) y muestra el código de referencia. Sirve para verificar la
+// bitácora de punta a punta. Sin el marcador, no hace nada.
+try {
+  if (/[?#&]logtest/i.test(location.href)) {
+    setTimeout(() => { throw new Error('Prueba de bitácora (logtest) — ' + LOG_APP); }, 1500);
+  }
+} catch (e) {}
+
 
 // ════════════════════════════════════════════════════════════════════
 // REALTIME.JS — StockVendedor — actualización en tiempo real (Supabase Realtime)
@@ -2943,6 +3696,7 @@ function openClientNameOverlay() {
         .join('');
       sel.innerHTML = '<option value="">— Otro cliente (escribir abajo) —</option>' + opts;
       sel.value = '';
+      refreshSelect(sel);
       row.style.display = 'block';
     } else {
       row.style.display = 'none';
@@ -3114,7 +3868,7 @@ function importClientTemplate(event) {
   event.target.value = '';
 
   const reader = new FileReader();
-  reader.onload = evt => {
+  reader.onload = async evt => {
     try {
       const wb = XLSX.read(evt.target.result, { type: 'array' });
 
@@ -3146,7 +3900,7 @@ function importClientTemplate(event) {
       if (templateList !== state.activeList) {
         const orig = listDisplayName(templateList);
         const own  = listDisplayName(state.activeList);
-        if (!confirm(
+        if (!await appConfirm(
           `Esta plantilla fue generada con ${orig}, pero tu lista activa es ${own}.\n\n` +
           `Si continuás, voy a cambiar la lista activa a ${orig} para que los precios coincidan.\n\n` +
           `¿Continuar?`
@@ -3246,11 +4000,11 @@ function importClientTemplate(event) {
 
       msg += `\n\n¿Cargar este pedido?`;
 
-      if (!confirm(msg)) return;
+      if (!await appConfirm({ message: msg, okText: 'Cargar' })) return;
 
       // Si ya hay un pedido en curso, preguntar
       if (state.currentOrder.items.length > 0) {
-        if (!confirm('Ya hay un pedido en curso. ¿Reemplazarlo con este?')) return;
+        if (!await appConfirm('Ya hay un pedido en curso. ¿Reemplazarlo con este?')) return;
         clearCurrentOrder();
       }
 
@@ -3450,7 +4204,7 @@ function listDisplayName(list) {
 //     price=0, subtotal=0. El render los muestra con badge rojo.
 //   - Si el usuario después vuelve a una lista donde sí tienen precio,
 //     el flag _noPrice se quita y los precios se restauran.
-function setActiveList(newList, opts) {
+async function setActiveList(newList, opts) {
   opts = opts || {};
   if (newList !== 'act' && newList !== 'dist' && newList !== 'vip') return;
   if (newList === state.activeList) return; // nada que hacer
@@ -3469,7 +4223,7 @@ function setActiveList(newList, opts) {
   if (items.length > 0 && !opts.skipConfirm) {
     const newName = listDisplayName(newList);
     const oldName = listDisplayName(state.activeList);
-    if (!confirm(
+    if (!await appConfirm(
       `Cambiar de ${oldName} a ${newName} va a recalcular los precios ` +
       `de ${items.length} item${items.length !== 1 ? 's' : ''} del pedido.\n\n` +
       `¿Continuar?`
@@ -3522,11 +4276,22 @@ function setActiveList(newList, opts) {
   if (typeof renderStockTab === 'function') renderStockTab();
 }
 
+// Topes "anti-absurdo" de un pedido. NO son límites de negocio (superar el
+// stock se permite con confirmación, es venta sobre pedido): son un techo para
+// que un tipeo (p. ej. pegar un código de barras en la cantidad) o un abuso no
+// generen pedidos demenciales. La central también los re-valida al importar.
+const MAX_QTY_PER_LINE   = 100000; // unidades por producto
+const MAX_ITEMS_PER_ORDER = 3000;  // productos distintos por pedido
+
 // Agregar producto al pedido actual
 function addToOrder(key, qty) {
   qty = parseInt(qty);
   if (!qty || qty < 1) {
     toast('Cantidad inválida', 'err');
+    return false;
+  }
+  if (qty > MAX_QTY_PER_LINE) {
+    toast(`Cantidad demasiado alta (máximo ${MAX_QTY_PER_LINE.toLocaleString('es-AR')} por producto)`, 'err');
     return false;
   }
 
@@ -3551,6 +4316,17 @@ function addToOrder(key, qty) {
   const existing = state.currentOrder.items.find(i => i.key === key);
   const previaEnPedido = existing ? existing.qty : 0;
   const qtyAcumulada   = previaEnPedido + qty;
+
+  // Tope acumulado por línea (contar lo previo evita esquivarlo agregando de a poco).
+  if (qtyAcumulada > MAX_QTY_PER_LINE) {
+    toast(`Cantidad demasiado alta (máximo ${MAX_QTY_PER_LINE.toLocaleString('es-AR')} por producto)`, 'err');
+    return false;
+  }
+  // Tope de productos distintos por pedido (solo aplica al agregar uno nuevo).
+  if (!existing && state.currentOrder.items.length >= MAX_ITEMS_PER_ORDER) {
+    toast(`El pedido ya tiene el máximo de ${MAX_ITEMS_PER_ORDER.toLocaleString('es-AR')} productos distintos`, 'err');
+    return false;
+  }
 
   if (qtyAcumulada > disponible) {
     const ctx = previaEnPedido > 0
@@ -3623,6 +4399,13 @@ function updateOrderItem(key, newQty) {
     return;
   }
   const newQtyNum = parsed;
+
+  // Tope "anti-absurdo" por línea: rechazar y dejar la cantidad anterior.
+  if (newQtyNum > MAX_QTY_PER_LINE) {
+    toast(`Cantidad demasiado alta (máximo ${MAX_QTY_PER_LINE.toLocaleString('es-AR')} por producto)`, 'err');
+    renderOrderTab();
+    return;
+  }
 
   // Validar contra stock disponible (igual que en addToOrder).
   // Si supera, pedir confirmación al usuario antes de aplicar.
@@ -3763,7 +4546,7 @@ function exportOrderJSON(order) {
 }
 
 // Eliminar pedido del historial
-function deleteOrder(id) {
+async function deleteOrder(id) {
   const o = state.orders.find(o => o.id === id);
   if (!o) return;
   // Para borradores usamos deleteDraft que tiene su propio confirm con info
@@ -3771,7 +4554,7 @@ function deleteOrder(id) {
     deleteDraft(id);
     return;
   }
-  if (!confirm('¿Eliminar este pedido del historial?')) return;
+  if (!await appConfirm({ message: '¿Eliminar este pedido del historial?', okText: 'Eliminar', danger: true })) return;
   state.orders = state.orders.filter(o => o.id !== id);
   saveOrders();
   if (typeof renderOrdersTab === 'function') renderOrdersTab();
@@ -3953,17 +4736,18 @@ function loadDraftIntoCurrentOrder(draftId) {
 }
 
 // Eliminar un borrador del historial (permanente).
-function deleteDraft(draftId) {
+async function deleteDraft(draftId) {
   const draft = state.orders.find(o => o.id === draftId && o.status === 'draft');
   if (!draft) return;
   const clienteStr = draft.client?.trim() || '(sin cliente)';
   const itemCount = draft.items?.length || 0;
-  if (!confirm(
-    `¿Eliminar el borrador?\n\n` +
+  if (!await appConfirm({
+    message: `¿Eliminar el borrador?\n\n` +
     `Cliente: ${clienteStr}\n` +
     `Items: ${itemCount}\n\n` +
-    `Esta acción es permanente.`
-  )) return;
+    `Esta acción es permanente.`,
+    okText: 'Eliminar', danger: true
+  })) return;
 
   // Si el borrador está actualmente cargado en currentOrder, desvincularlo
   // (sino al guardar/enviar trataría de reemplazar una entrada que ya no existe).
@@ -4277,6 +5061,8 @@ function openClientEdit(id, fromPicker) {
   const c = id ? getClientById(id) : null;
   document.getElementById('clientEditTitle').textContent = c ? 'Editar cliente' : 'Nuevo cliente';
   document.getElementById('clientEditName').value = c ? c.name : '';
+  document.getElementById('clientEditDomicilio').value = c ? (c.domicilio || '') : '';
+  document.getElementById('clientEditTelefono').value = c ? (c.telefono || '') : '';
   document.getElementById('clientEditNotes').value = c ? (c.notes || '') : '';
   _clientEditList = c ? c.list : (state.activeList || 'act');
   _syncClientEditChips();
@@ -4303,6 +5089,8 @@ function _syncClientEditChips() {
 
 function saveClientEdit() {
   const name = (document.getElementById('clientEditName').value || '').trim();
+  const domicilio = (document.getElementById('clientEditDomicilio').value || '').trim();
+  const telefono = (document.getElementById('clientEditTelefono').value || '').trim();
   const notes = (document.getElementById('clientEditNotes').value || '').trim();
   if (!name) { toast('Falta el nombre del cliente', 'err'); return; }
 
@@ -4322,6 +5110,8 @@ function saveClientEdit() {
   }
   c.name = name;
   c.list = _clientEditList;
+  c.domicilio = domicilio;
+  c.telefono = telefono;
   c.notes = notes;
   c.updatedAt = now;
   c._dirty = true;        // pendiente de subir a la nube (para la central)
@@ -4352,10 +5142,10 @@ function saveClientEdit() {
   }
 }
 
-function deleteClientEdit() {
+async function deleteClientEdit() {
   const c = getClientById(_editingClientId);
   if (!c) { closeClientEdit(); return; }
-  if (!confirm(`¿Borrar la ficha de "${c.name}"?\n\nLos pedidos ya hechos no se tocan.`)) return;
+  if (!await appConfirm({ message: `¿Borrar la ficha de "${c.name}"?\n\nLos pedidos ya hechos no se tocan.`, okText: 'Borrar', danger: true })) return;
   state.clients = state.clients.filter(x => x.id !== c.id);
   saveClients();
   // Si era el cliente del pedido en curso: queda el nombre suelto y la
@@ -4409,12 +5199,12 @@ function openClientEditFromPicker() {
   if (q) document.getElementById('clientEditName').value = q;
 }
 
-function pickClientForOrder(id) {
+async function pickClientForOrder(id) {
   const c = getClientById(id);
   if (!c) return;
   const items = state.currentOrder.items || [];
   if (items.length > 0 && c.list !== state.activeList) {
-    if (!confirm(
+    if (!await appConfirm(
       `${c.name} usa la lista ${listDisplayName(c.list)}.\n` +
       `Los precios de ${items.length} item${items.length !== 1 ? 's' : ''} del pedido se van a recalcular.\n\n¿Continuar?`
     )) return;
@@ -4498,6 +5288,8 @@ async function syncClientsToCloud() {
         name:       c.name,
         list:       c.list,
         vendor:     state.user.name || '',
+        domicilio:  c.domicilio || '',
+        telefono:   c.telefono || '',
         updated_at: new Date().toISOString(),
       }, { onConflict: 'ns,client_id' });
       if (error) {
@@ -4564,10 +5356,25 @@ function switchTab(tab) {
 // ══ HOME / CONFIGURACIÓN ══
 
 function renderHomeTab() {
+  applyVendorIdentity();   // si hay sesión, fija nombre + código de la cuenta
   const nameEl = document.getElementById('homeUserName');
   const codeEl = document.getElementById('homeUserCode');
   if (nameEl) nameEl.value = state.user.name || '';
   if (codeEl) codeEl.value = state.user.code || '';
+
+  // Identidad bloqueada: si viene de la cuenta, los campos no se editan y se
+  // esconde el botón Guardar (se evita que se "creen" vendedores nuevos a mano).
+  const locked = !!_sbAccountIdentity();
+  const btn  = document.getElementById('saveUserBtn');
+  const note = document.getElementById('homeIdentityNote');
+  [nameEl, codeEl].forEach(el => {
+    if (!el) return;
+    el.readOnly = locked;
+    el.style.opacity = locked ? '0.7' : '';
+    el.style.cursor  = locked ? 'not-allowed' : '';
+  });
+  if (btn)  btn.style.display  = locked ? 'none' : '';
+  if (note) note.style.display = locked ? 'block' : 'none';
 
   const stockInfo = document.getElementById('homeStockInfo');
   if (stockInfo) {
@@ -4600,6 +5407,8 @@ function renderHomeTab() {
 }
 
 function saveUserConfig() {
+  // Si la identidad viene de la cuenta, no se toca a mano.
+  if (_sbAccountIdentity()) { applyVendorIdentity(); renderHomeTab(); return; }
   const name = document.getElementById('homeUserName').value.trim();
   const code = document.getElementById('homeUserCode').value.trim().toUpperCase();
   if (!name) { toast('Escribí tu nombre', 'err'); return; }
@@ -4657,9 +5466,9 @@ function renderStockTab() {
   sortStockData(data);
 
   const sortSel = document.getElementById('stockSortSelect');
-  if (sortSel) sortSel.value = state.stockSort || 'catalog';
+  if (sortSel) { sortSel.value = state.stockSort || 'catalog'; refreshSelect(sortSel); }
   const groupSel = document.getElementById('stockGroupSelect');
-  if (groupSel) groupSel.value = _stockGroupBy;
+  if (groupSel) { groupSel.value = _stockGroupBy; refreshSelect(groupSel); }
 
   document.getElementById('stockCount').textContent =
     data.length + ' producto' + (data.length !== 1 ? 's' : '');
@@ -4754,6 +5563,91 @@ function setStockGroup(val) {
   _expandedStockGroups = new Set();     // al cambiar el criterio, todo plegado
   renderStockTab();
 }
+
+// ── Desplegable propio para <select> (la lista del sistema no se puede pintar).
+// Oculta el <select> nativo pero lo mantiene funcional: al elegir una opción
+// fija su value y dispara su onchange, así la lógica existente no cambia. La
+// lista flota a nivel de página (position:fixed, colgada del <body>) para no
+// quedar recortada dentro de modales o áreas con scroll. ──
+function enhanceSelect(sel) {
+  if (!sel || sel._enhanced) return;
+  sel._enhanced = true;
+  const wrap = document.createElement('div');
+  wrap.className = 'csel';
+  sel.parentNode.insertBefore(wrap, sel);
+  wrap.appendChild(sel);
+  sel.classList.add('csel-native');
+  sel.tabIndex = -1;
+
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
+  trigger.className = 'csel-trigger';
+  wrap.appendChild(trigger);
+
+  const pop = document.createElement('div');   // se cuelga del <body> al abrir
+  pop.className = 'csel-pop';
+
+  function syncTrigger() {
+    const o = sel.options[sel.selectedIndex];
+    trigger.textContent = o ? o.text : '';
+  }
+  function position() {
+    const r = trigger.getBoundingClientRect();
+    pop.style.left = r.left + 'px';
+    pop.style.top = (r.bottom + 4) + 'px';
+    pop.style.minWidth = r.width + 'px';
+  }
+  function buildPop() {
+    pop.innerHTML = '';
+    Array.from(sel.options).forEach((opt, i) => {
+      const it = document.createElement('div');
+      it.className = 'csel-opt' + (i === sel.selectedIndex ? ' on' : '');
+      it.textContent = opt.text;
+      it.addEventListener('click', () => {
+        sel.selectedIndex = i;
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+        syncTrigger();
+        close();
+      });
+      pop.appendChild(it);
+    });
+  }
+  function open() {
+    buildPop();
+    document.body.appendChild(pop);
+    position();
+    pop.classList.add('show');
+    pop._open = true;
+  }
+  function close() {
+    pop.classList.remove('show');
+    pop._open = false;
+    if (pop.parentNode) pop.parentNode.removeChild(pop);
+  }
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    pop._open ? close() : open();
+  });
+  document.addEventListener('click', (e) => {
+    if (pop._open && e.target !== trigger && !pop.contains(e.target)) close();
+  });
+  window.addEventListener('scroll', () => { if (pop._open) close(); }, true);
+  window.addEventListener('resize', () => { if (pop._open) close(); });
+  sel.addEventListener('change', syncTrigger);
+  sel._cselSync = syncTrigger;
+  syncTrigger();
+}
+// Refresca el texto del desplegable tras fijar el value por código.
+function refreshSelect(sel) { if (sel && sel._cselSync) sel._cselSync(); }
+// Convierte todos los <select> aún no convertidos (incl. los generados dinámicamente).
+function enhanceAllSelects(root) {
+  // root puede venir como un Event si se usa de handler — usar document salvo
+  // que sea un nodo real con querySelectorAll.
+  const scope = (root && typeof root.querySelectorAll === 'function') ? root : document;
+  scope.querySelectorAll('select').forEach(enhanceSelect);
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => enhanceAllSelects());
+else enhanceAllSelects();
 
 function toggleStockGroup(name) {
   if (_expandedStockGroups.has(name)) _expandedStockGroups.delete(name);
@@ -5081,14 +5975,14 @@ function _availabilityBadge(key, requestedQty) {
   return ` · <span class="oi-avail oi-avail-ok">${disponible} disp.</span>`;
 }
 
-function changeOrderQty(key, delta) {
+async function changeOrderQty(key, delta) {
   const item = state.currentOrder.items.find(i => i.key === key);
   if (!item) return;
   const newQty = item.qty + delta;
   // Si el botón "−" llevaría a 0 o menos, preguntamos antes de borrar el item.
   // Sin esto, un click de más elimina el producto silenciosamente.
   if (newQty < 1) {
-    if (!confirm(`¿Quitar "${item.label}" del pedido?`)) return;
+    if (!await appConfirm({ message: `¿Quitar "${item.label}" del pedido?`, okText: 'Quitar', danger: true })) return;
     removeFromOrder(key);
   } else {
     updateOrderItem(key, newQty);
@@ -5170,9 +6064,9 @@ async function handleSendOrder() {
   }
 }
 
-function handleClearOrder() {
+async function handleClearOrder() {
   if (!state.currentOrder.items.length) return;
-  if (!confirm('¿Vaciar el pedido actual?')) return;
+  if (!await appConfirm({ message: '¿Vaciar el pedido actual?', okText: 'Vaciar', danger: true })) return;
   clearCurrentOrder();
   // Limpiar también el buscador
   const searchInput = document.getElementById('orderSearchInput');
